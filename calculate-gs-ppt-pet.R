@@ -1,4 +1,4 @@
-library(tidyverse)
+#library(tidyverse)
 
 local <- read.csv("/Users/ingridslette/Desktop/Weather_monthly_20220615.csv")
 
