@@ -1,11 +1,11 @@
-#library(tidyverse)
+library(tidyverse)
 
 local <- read.csv("/Users/ingridslette/Desktop/Weather_monthly_20220615.csv")
 
 unique(local$site_code)
 
-local <- local %>% 
-  filter(site_code %in% c("bayr.de","ukul.za"))
+#local <- local %>% 
+#  filter(site_code %in% c("bayr.de","ukul.za"))
 
 local <- local %>% 
   dplyr::select(site_code, month, year, pre)
@@ -49,8 +49,8 @@ ghcn <- ghcn %>%
 
 unique(ghcn$site_code)
 
-ghcn <- ghcn %>% 
-  filter(site_code %in% c("sage.us","mtca.au","bnch.us","elliot.us"))
+#ghcn <- ghcn %>% 
+#  filter(site_code %in% c("sage.us","mtca.au","bnch.us","elliot.us"))
 
 ghcn_monthly <- ghcn %>% 
   group_by(site_code, month, year) %>% 
@@ -66,37 +66,36 @@ cru <- cru %>%
 
 cru$month <- match(cru$month_abb, month.abb)
 
-cru_pet <- cru %>% 
-  dplyr::select(site_code, month, year, plotdate, pet_mm.month)
-
-cru_ppt <- cru %>% 
-  filter(site_code == "bldr.us")
-
-cru_ppt <- cru_ppt %>% 
+cru_pre <- cru %>% 
   dplyr::select(site_code, month, year, pre_mm.month)
 
+cru_pet <- cru %>% 
+  dplyr::select(site_code, month, year, pet_mm.month)
+
+#cru_ppt <- cru %>% 
+#  filter(site_code == "bldr.us")
 
 mswep <- read.csv("/Users/ingridslette/Library/CloudStorage/GoogleDrive-slett152@umn.edu/Shared drives/NutNet_DRAGNet_Shared_External/NutNet Shared/NutNet Non-Core Data/weather/MSWEP/precip-daily-mswep-2025-02-19.csv")
 
 unique(mswep$site_code)
 
-mswep <- mswep %>% 
-  filter(site_code %in% c("doane.us","marc.ar","sedg.us","bnbt.us","spin.us","yarra.au","cdcr.us",
-                          "cbgb.us","sier.us","ping.au","koffler.ca","kbs.us","smith.us",
-                          "look.us","trel.us","frue.ch","saana.fi","cowi.ca","nilla.au","arch.us",
-                          "konz.us","hall.us","chilcas.ar","cedr.us","mcla.us","valm.ch",
-                          "badlau.de","jena.de","pape.de","comp.pt","kiny.au","bogong.au",
-                          "temple.us","cdpt.us","ethass.au","hopl.us","kidman.au",
-                          "lancaster.uk","lagoas.br","ethamc.au","burrawan.au",
-                          "lubb.us","msla.us","kilp.fi","sgs.us","veluwe.nl", "saline.us",
-                          "sevi.us","potrok.ar","hero.uk","msla_2.us","msla_3.us"))
+#mswep <- mswep %>% 
+#  filter(site_code %in% c("doane.us","marc.ar","sedg.us","bnbt.us","spin.us","yarra.au","cdcr.us",
+                          # "cbgb.us","sier.us","ping.au","koffler.ca","kbs.us","smith.us",
+                          # "look.us","trel.us","frue.ch","saana.fi","cowi.ca","nilla.au","arch.us",
+                          # "konz.us","hall.us","chilcas.ar","cedr.us","mcla.us","valm.ch",
+                          # "badlau.de","jena.de","pape.de","comp.pt","kiny.au","bogong.au",
+                          # "temple.us","cdpt.us","ethass.au","hopl.us","kidman.au",
+                          # "lancaster.uk","lagoas.br","ethamc.au","burrawan.au",
+                          # "lubb.us","msla.us","kilp.fi","sgs.us","veluwe.nl", "saline.us",
+                          # "sevi.us","potrok.ar","hero.uk","msla_2.us","msla_3.us"))
 
 mswep_monthly <- mswep %>% 
   group_by(site_code, month, year) %>% 
   summarise(precip_monthly = sum(precip))
 
 unique(local$site_code)
-unique(cru_ppt$site_code)
+unique(cru_pre$site_code)
 unique(ghcn_monthly$site_code)
 unique(mswep_monthly$site_code)
 
@@ -112,11 +111,11 @@ local <- local %>%
   rename(ppt = pre) %>%
   mutate(source = "local")
 
-cru_ppt <- cru_ppt %>%
+cru_pre <- cru_pre %>%
   rename(ppt = pre_mm.month) %>%
   mutate(source = "cru")
 
-ppt_data <- bind_rows(mswep_monthly, ghcn_monthly, local, cru_ppt)
+ppt_data <- bind_rows(mswep_monthly, ghcn_monthly, local, cru_pre)
 
 unique(ppt_data$site_code)
 unique(ppt_data$source)
