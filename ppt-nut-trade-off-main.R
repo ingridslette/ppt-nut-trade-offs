@@ -14,7 +14,7 @@ library(performance)
 
 ### Loading, viewing, and filtering precipitation and mass data 
 
-mass <- read.csv('/Users/ingridslette/Library/CloudStorage/GoogleDrive-slett152@umn.edu/Shared drives/NutNet_DRAGNet_Shared_External/NutNet Shared/NutNet Core Data/comb-by-plot-clim-soil-diversity-2025-12-09.csv',
+mass <- read.csv('/Users/ingridslette/Desktop/comb-by-plot-clim-soil-diversity-2025-12-09.csv',
                  na.strings = c("NULL","NA"))
 
 unique(mass$site_code)
@@ -107,9 +107,23 @@ mass_ppt <- mass_ppt %>%
 unique(mass_ppt$site_code)
 
 
-### Calculate slope of ppt vs mass at each site
+# Calculating light interception from PAR
+mass_ppt <- mass_ppt %>%
+  mutate(light_intercepted = 1 - (Ground_PAR / Ambient_PAR))
 
-site_codes <- unique(mass_ppt$site_code)
+
+# Getting rid of unneeded columns
+mass_ppt_edited <- mass_ppt %>%
+  dplyr::select(site_code, block, plot, continent, country, trt, 
+                year, live_mass, log_mass, ppt, log_ppt, year_trt,
+                proportion_par, avg_ppt, sd_ppt,
+                rich, MAT_v2, AI, PET, MAP_v2, ppt_pet, light_intercepted)
+
+unique(mass_ppt_edited$site_code)
+
+
+### Calculate slope of ppt vs mass at each site
+site_codes <- unique(mass_ppt_edited$site_code)
 
 site_slopes <- data.frame(site_code = character(),
                       control_slope = numeric(), 
@@ -118,8 +132,8 @@ site_slopes <- data.frame(site_code = character(),
                       stringsAsFactors = FALSE)
 
 for (site in site_codes) {
-  site_data_control <- subset(mass_ppt, site_code == site & trt == "Control")
-  site_data_npk <- subset(mass_ppt, site_code == site & trt == "NPK")
+  site_data_control <- subset(mass_ppt_edited, site_code == site & trt == "Control")
+  site_data_npk <- subset(mass_ppt_edited, site_code == site & trt == "NPK")
   control_model <- lm(log_mass ~ log_ppt, data = site_data_control)
   npk_model <- lm(log_mass ~ log_ppt, data = site_data_npk)
   control_slope <- coef(control_model)["log_ppt"]
@@ -133,21 +147,41 @@ for (site in site_codes) {
 }
 
 
-
-
-
-### Covariate analyses
-
-## Incorporating log response ratio of mass to trt
-lrr_df <- mass_ppt %>%
+## Calculating log response ratio of mass to trt
+site_year_lrr_mass <- mass_ppt_edited %>%
   group_by(site_code, year) %>%
   summarize(
     lrr_mass = log(mean(live_mass[trt == "NPK"], na.rm = TRUE) /
                      mean(live_mass[trt == "Control"], na.rm = TRUE))
   )
 
-## Incorporating C3/C4 and annual/perennial information from cover data
-cover <- read.csv("/Users/ingridslette/Desktop/NutNet/full-cover_2025-01-31.csv",
+site_lrr_mass <- site_year_lrr_mass %>%
+  group_by(site_code) %>%
+  summarize(
+    lrr_mass = mean(lrr_mass, na.rm = TRUE)
+  )
+
+site_slopes_lrr_mass <- left_join(site_slopes, site_lrr_mass, by = "site_code")
+
+
+site_mass_fig <- ggplot(data = site_slopes_lrr_mass, aes(x = lrr_mass, y = control_slope)) +
+  geom_point() +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Response to NPK (log response ratio)",
+       y = "Response to precipitation \n(slope of mass vs. precipitation)",
+       title = "Site biomass responses to precipitation and NPK") +
+  scale_y_continuous(limits = c(-1.5, 3)) +
+  scale_x_continuous(limits = c(-0.15, 1)) +
+  theme_bw(base_size = 14) +
+  theme(legend.position = "none")
+
+site_mass_fig
+
+
+
+## Species-level data
+cover <- read.csv("/Users/ingridslette/Desktop/full-cover-2025-12-09.csv",
                   na.strings = c("NULL","NA"))
 
 cover <- cover %>%
@@ -175,6 +209,12 @@ cover <- cover %>%
 cover <- cover %>%
   mutate(ps_path2 = if_else(is.na(ps_path2) & !is.na(ps_path), ps_path, ps_path2))
 
+
+
+
+
+
+
 cover_by_site_plot_year <- cover %>%
   group_by(site_code, plot, year) %>%
   summarise(
@@ -189,31 +229,7 @@ cover_by_site_plot_year <- cover %>%
   )
 
 
-# Calculating light interception from PAR
 
-mass_ppt <- mass_ppt %>%
-  mutate(light_intercepted = 1 - (Ground_PAR / Ambient_PAR))
-
-# Getting rid of unneeded columns
-
-mass_ppt_edited <- mass_ppt %>%
-  dplyr::select(site_code, block, plot, continent, country, region, habitat, trt, 
-                year, live_mass, log_mass, ppt, log_ppt, prev_ppt, year_trt,
-                proportion_par, avg_ppt, sd_ppt, p05_ppt, p95_ppt, p10_ppt, 
-                p90_ppt,rich, MAT_v2, AI, PET, MAP_v2, ppt_pet, light_intercepted)
-
-unique(mass_ppt_edited$site_code)
-
-# Joining LRR and cover data to main dataframe
-
-mass_ppt_edited <- mass_ppt_edited %>% 
-  left_join(lrr_df, by = c("site_code", "year"))
-
-mass_ppt_edited <- mass_ppt_edited %>% 
-  left_join(cover_by_site_plot_year, by = c("site_code", "plot", "year"))
-
-mass_ppt_edited <- na.omit(mass_ppt_edited)
-unique(mass_ppt_edited$site_code)
 
 
 ## Covariate model of mass
