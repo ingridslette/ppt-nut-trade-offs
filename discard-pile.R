@@ -201,3 +201,16 @@ paired_t_test_r2_ppt_pet <- t.test(results_ppt_pet$control_r2, results_ppt_pet$n
 paired_t_test_r2_ppt_pet
 
 
+
+# Joining LRR and cover data to main dataframe
+
+mass_ppt_edited <- mass_ppt_edited %>% 
+  left_join(lrr_df, by = c("site_code", "year"))
+
+mass_ppt_edited <- mass_ppt_edited %>% 
+  left_join(cover_by_site_plot_year, by = c("site_code", "plot", "year"))
+
+mass_ppt_edited <- na.omit(mass_ppt_edited)
+unique(mass_ppt_edited$site_code)
+
+
