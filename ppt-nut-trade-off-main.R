@@ -107,12 +107,12 @@ mass_ppt <- mass_ppt %>%
 unique(mass_ppt$site_code)
 
 
-# Calculating light interception from PAR
+# Calculate light interception from PAR
 mass_ppt <- mass_ppt %>%
   mutate(light_intercepted = 1 - (Ground_PAR / Ambient_PAR))
 
 
-# Getting rid of unneeded columns
+# Get rid of unneeded columns
 mass_ppt_edited <- mass_ppt %>%
   dplyr::select(site_code, block, plot, continent, country, trt, 
                 year, live_mass, log_mass, ppt, log_ppt, year_trt,
@@ -147,7 +147,7 @@ for (site in site_codes) {
 }
 
 
-## Calculating log response ratio of mass to trt
+## Calculate log response ratio of mass to trt
 site_year_lrr_mass <- mass_ppt_edited %>%
   group_by(site_code, year) %>%
   summarize(
@@ -178,59 +178,76 @@ site_mass_fig <- ggplot(data = site_slopes_lrr_mass, aes(x = lrr_mass, y = contr
 
 site_mass_fig
 
+site_mass_model <- lm(control_slope ~ lrr_mass, data = site_slopes_lrr_mass)
+summary(site_mass_model)
 
 
-## Species-level data
+
+## Species cover data
 cover <- read.csv("/Users/ingridslette/Desktop/full-cover-2025-12-09.csv",
                   na.strings = c("NULL","NA"))
 
 cover <- cover %>%
   filter(site_code %in% site_codes)
 
-dat1 <- subset(cover, is.na(ps_path) == TRUE)%>%
-  separate(Taxon, into = c("Genus", "Species"), remove = FALSE, sep = " ")
-
-dat1$ps_path <- ifelse(dat1$Genus == "BINERTIA" | dat1$Genus == "TIDESTROMIA" | dat1$Genus == "PECTIS" | dat1$Genus == "EUPLOCA" | dat1$Genus == "BULBOSTYLIS" | dat1$Genus == "CYPERUS" | dat1$Genus == "FIMBRISTYLIS" | dat1$Genus == "CHAMAESYCE" | dat1$Genus == "ALLIONIA" | dat1$Genus == "CALLIGONUM" | dat1$Genus == "PORTULACA" | dat1$Genus == "EUPHORBIA", "C4",
-                       ifelse(dat1$Genus == "BELAPHARIS" | dat1$Genus == "AERVA" | dat1$Genus == "ALTERNANTHERA" | dat1$Genus == "ATRIPLEX" | dat1$Genus == "SUAEDA" | dat1$Genus == "TECTICORNIA" | dat1$Genus == "FLAVERIA" | dat1$Genus == "POLYCARPOREA" | dat1$Genus == "ELEOCHARS" | dat1$Genus == "RHYNCHOSPORA" | dat1$Genus == "EUPHORBIA" | dat1$Genus == "MOLLUGO" | dat1$Genus == "BOERHAVIA" | dat1$Genus == "BASSIA" | dat1$Family == "Poaceae", NA,
-                              "C3"))
-unique(dat1$ps_path)
-
-dat1 <- dat1 %>%
-  rename(ps_path2 = ps_path)
-
-names(dat1)
-names(cover)
-
-cover <- cover %>% 
-  left_join(dat1, by = c("year", "site_name", "site_code", "block", "plot", "subplot", "year_trt", "trt", 
-                         "Family", "Taxon", "live", "local_provenance", "local_lifeform", "local_lifespan", 
-                         "functional_group", "max_cover"))
-
 cover <- cover %>%
-  mutate(ps_path2 = if_else(is.na(ps_path2) & !is.na(ps_path), ps_path, ps_path2))
+  filter(live == 1)
+
+# fill in missing photosynthetic pathway data
+# dat1 <- subset(cover, is.na(ps_path) == TRUE)%>%
+#   separate(Taxon, into = c("Genus", "Species"), remove = FALSE, sep = " ")
+# 
+# dat1$ps_path <- ifelse(dat1$Genus == "BINERTIA" | dat1$Genus == "TIDESTROMIA" | dat1$Genus == "PECTIS" | dat1$Genus == "EUPLOCA" | dat1$Genus == "BULBOSTYLIS" | dat1$Genus == "CYPERUS" | dat1$Genus == "FIMBRISTYLIS" | dat1$Genus == "CHAMAESYCE" | dat1$Genus == "ALLIONIA" | dat1$Genus == "CALLIGONUM" | dat1$Genus == "PORTULACA" | dat1$Genus == "EUPHORBIA", "C4",
+#                        ifelse(dat1$Genus == "BELAPHARIS" | dat1$Genus == "AERVA" | dat1$Genus == "ALTERNANTHERA" | dat1$Genus == "ATRIPLEX" | dat1$Genus == "SUAEDA" | dat1$Genus == "TECTICORNIA" | dat1$Genus == "FLAVERIA" | dat1$Genus == "POLYCARPOREA" | dat1$Genus == "ELEOCHARS" | dat1$Genus == "RHYNCHOSPORA" | dat1$Genus == "EUPHORBIA" | dat1$Genus == "MOLLUGO" | dat1$Genus == "BOERHAVIA" | dat1$Genus == "BASSIA" | dat1$Family == "Poaceae", NA,
+#                               "C3"))
+# unique(dat1$ps_path)
+# 
+# dat1 <- dat1 %>%
+#   rename(ps_path2 = ps_path)
+# 
+# names(dat1)
+# names(cover)
+# 
+# cover <- cover %>% 
+#   left_join(dat1, by = c("year", "site_name", "site_code", "block", "plot", "subplot", "year_trt", "trt", 
+#                          "Family", "Taxon", "live", "local_provenance", "local_lifeform", "local_lifespan", 
+#                          "functional_group", "max_cover"))
+# 
+# cover <- cover %>%
+#   mutate(ps_path2 = if_else(is.na(ps_path2) & !is.na(ps_path), ps_path, ps_path2))
 
 
+# filter to only plots of interest
+cover1 <- filter(cover, trt %in% c("Control", "NPK")) 
 
 
+# add rows for species found in a plot in some but not all years
+
+years_by_site <- cover1 %>%
+  distinct(site_code, year)
+
+taxa_by_plot <- cover1 %>%
+  distinct(site_code, plot, Taxon)
+
+full_design <- taxa_by_plot %>%
+  left_join(years_by_site, by = "site_code")
+
+cover_complete <- full_design %>%
+  left_join(cover1, by = c("site_code", "plot", "Taxon", "year")) %>%
+  mutate(max_cover = replace_na(max_cover, 0))
+
+cover_complete <- cover_complete %>%
+  mutate(max_cover = max_cover + 0.01)
 
 
-
-cover_by_site_plot_year <- cover %>%
-  group_by(site_code, plot, year) %>%
-  summarise(
-    total_cover = sum(max_cover, na.rm = TRUE),
-    c4_cover = if (any(ps_path2 == "C4", na.rm = TRUE)) {
-      sum(max_cover[ps_path2 == "C4"], na.rm = TRUE)} else {0},
-    c4_proportion = c4_cover / total_cover,
-    annual_cover = if (any(local_lifespan == "ANNUAL", na.rm = TRUE)) {
-      sum(max_cover[local_lifespan == "ANNUAL"], na.rm = TRUE)} else {0},
-    annual_proportion = annual_cover / total_cover,
-    .groups = "drop"
-  )
-
-
-
-
+# other_cols <- cover1 %>%
+#   distinct(Taxon, site_code, site_name, block, plot, subplot, year, year_trt, trt, live, Family, 
+#            functional_group, local_lifeform, local_lifespan, local_provenance, ps_path)
+# 
+# cover_complete <- cover_complete %>%
+#   left_join(other_cols, by = c("Taxon", "site_code", "plot", "year"))
+# 
+# colnames(cover1)
 
 ## Covariate model of mass
 
