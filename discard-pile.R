@@ -214,3 +214,18 @@ mass_ppt_edited <- na.omit(mass_ppt_edited)
 unique(mass_ppt_edited$site_code)
 
 
+
+cover_by_site_plot_year <- cover %>%
+  group_by(site_code, plot, year) %>%
+  summarise(
+    total_cover = sum(max_cover, na.rm = TRUE),
+    c4_cover = if (any(ps_path2 == "C4", na.rm = TRUE)) {
+      sum(max_cover[ps_path2 == "C4"], na.rm = TRUE)} else {0},
+    c4_proportion = c4_cover / total_cover,
+    annual_cover = if (any(local_lifespan == "ANNUAL", na.rm = TRUE)) {
+      sum(max_cover[local_lifespan == "ANNUAL"], na.rm = TRUE)} else {0},
+    annual_proportion = annual_cover / total_cover,
+    .groups = "drop"
+  )
+
+
