@@ -88,10 +88,6 @@ mass_ppt <- inner_join(mass6, ppt_data, by = c("site_code", "year"))
 unique(mass_ppt$site_code)
 
 mass_ppt <- mass_ppt %>%
-  mutate(log_mass = log10(live_mass),
-         log_ppt = log10(ppt))
-
-mass_ppt <- mass_ppt %>%
   group_by(site_code) %>%
   mutate(min_ppt = min(ppt, na.rm = TRUE),
          max_ppt = max(ppt, na.rm = TRUE)) %>%
@@ -106,11 +102,11 @@ mass_ppt <- mass_ppt %>%
 
 unique(mass_ppt$site_code)
 
-
-# Calculate light interception from PAR
+# Calculate log_mass, log_ppt, light interception
 mass_ppt <- mass_ppt %>%
-  mutate(light_intercepted = 1 - (Ground_PAR / Ambient_PAR))
-
+  mutate(log_mass = log10(live_mass),
+         log_ppt = log10(ppt),
+         light_intercepted = 1 - (Ground_PAR / Ambient_PAR))
 
 # Get rid of unneeded columns
 mass_ppt_edited <- mass_ppt %>%
@@ -177,7 +173,6 @@ site_mass_model <- lm(control_slope ~ lrr_mass, data = site_slopes_lrr_mass)
 summary(site_mass_model)
 
 
-
 ## Species cover data
 cover <- read.csv("/Users/ingridslette/Desktop/full-cover-2025-12-09.csv",
                   na.strings = c("NULL","NA"))
@@ -188,7 +183,41 @@ cover <- cover %>%
 cover <- cover %>%
   filter(live == 1)
 
-# fill in missing photosynthetic pathway data
+cover1 <- cover %>%
+  filter(cover, trt %in% c("Control", "NPK")) 
+
+
+# Add rows for species found in a plot in some but not all years
+
+years_by_site <- cover1 %>%
+  distinct(site_code, year, year_trt)
+
+taxa_by_plot <- cover1 %>%
+  distinct(site_code, site_name, block, plot, subplot, trt, Taxon)
+
+full_design <- taxa_by_plot %>%
+  left_join(years_by_site, by = "site_code")
+
+cover_focal_cols <- cover1 %>%
+  distinct(year, site_code, plot, Taxon, max_cover)
+
+cover_trait_cols <- cover1 %>%
+  distinct(Taxon, site_code, Family, functional_group, local_lifeform, 
+           local_lifespan, local_provenance, ps_path)
+
+cover_complete <- full_design %>%
+  left_join(cover_focal_cols, by = c("site_code", "plot", "Taxon", "year")) %>%
+  mutate(max_cover = replace_na(max_cover, 0))
+
+cover_complete <- cover_complete %>%
+  mutate(max_cover = max_cover + 0.01)
+
+cover_complete <- cover_complete %>%
+   left_join(cover_trait_cols, by = c("site_code", "Taxon"))
+
+
+
+# Fill in missing photosynthetic pathway data
 # dat1 <- subset(cover, is.na(ps_path) == TRUE)%>%
 #   separate(Taxon, into = c("Genus", "Species"), remove = FALSE, sep = " ")
 # 
@@ -212,37 +241,10 @@ cover <- cover %>%
 #   mutate(ps_path2 = if_else(is.na(ps_path2) & !is.na(ps_path), ps_path, ps_path2))
 
 
-# filter to only plots of interest
-cover1 <- filter(cover, trt %in% c("Control", "NPK")) 
 
 
-# add rows for species found in a plot in some but not all years
-
-years_by_site <- cover1 %>%
-  distinct(site_code, year)
-
-taxa_by_plot <- cover1 %>%
-  distinct(site_code, plot, Taxon)
-
-full_design <- taxa_by_plot %>%
-  left_join(years_by_site, by = "site_code")
-
-cover_complete <- full_design %>%
-  left_join(cover1, by = c("site_code", "plot", "Taxon", "year")) %>%
-  mutate(max_cover = replace_na(max_cover, 0))
-
-cover_complete <- cover_complete %>%
-  mutate(max_cover = max_cover + 0.01)
 
 
-# other_cols <- cover1 %>%
-#   distinct(Taxon, site_code, site_name, block, plot, subplot, year, year_trt, trt, live, Family, 
-#            functional_group, local_lifeform, local_lifespan, local_provenance, ps_path)
-# 
-# cover_complete <- cover_complete %>%
-#   left_join(other_cols, by = c("Taxon", "site_code", "plot", "year"))
-# 
-# colnames(cover1)
 
 ## Covariate model of mass
 
