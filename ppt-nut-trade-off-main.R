@@ -116,8 +116,8 @@ mass_ppt <- mass_ppt %>%
 mass_ppt_edited <- mass_ppt %>%
   dplyr::select(site_code, block, plot, continent, country, trt, 
                 year, live_mass, log_mass, ppt, log_ppt, year_trt,
-                proportion_par, avg_ppt, sd_ppt,
-                rich, MAT_v2, AI, PET, MAP_v2, ppt_pet, light_intercepted)
+                proportion_par, avg_ppt, sd_ppt, rich, MAT_v2, AI, 
+                PET, MAP_v2, ppt_pet, light_intercepted)
 
 unique(mass_ppt_edited$site_code)
 
@@ -148,18 +148,13 @@ for (site in site_codes) {
 
 
 ## Calculate log response ratio of mass to trt
-site_year_lrr_mass <- mass_ppt_edited %>%
-  group_by(site_code, year) %>%
+site_lrr_mass <- mass_ppt_edited %>%
+  group_by(site_code) %>%
   summarize(
     lrr_mass = log(mean(live_mass[trt == "NPK"], na.rm = TRUE) /
                      mean(live_mass[trt == "Control"], na.rm = TRUE))
   )
 
-site_lrr_mass <- site_year_lrr_mass %>%
-  group_by(site_code) %>%
-  summarize(
-    lrr_mass = mean(lrr_mass, na.rm = TRUE)
-  )
 
 site_slopes_lrr_mass <- left_join(site_slopes, site_lrr_mass, by = "site_code")
 
