@@ -224,6 +224,56 @@ cover_mass_ppt <- cover_complete %>%
   left_join(mass_ppt_edited, by = c("site_code", "year", "block", "plot", "trt", "year_trt"))
 
 
+### Calculate slope of ppt vs max_cover for each site-Taxon combination
+
+cover_slopes <- cover_mass_ppt %>%
+  group_by(site_code, Taxon, trt) %>%
+  summarise(
+    slope = coef(lm(max_cover ~ ppt))[2],
+    .groups = "drop"
+  )
+
+cover_slopes_wide <- cover_slopes %>%
+  pivot_wider(names_from = trt, values_from = slope)
+
+
+
+## Calculate log response ratio of each site-Taxon combination to trt
+site_spp_trt_mean_cover <- cover_mass_ppt %>%
+  group_by(site_code, Taxon, trt) %>%
+  summarize(
+    trt_mean = mean(max_cover, na.rm = TRUE))
+
+site_spp_lrr_cover <- site_spp_trt_mean_cover %>%
+  group_by(site_code, Taxon) %>%
+  summarize(
+    lrr_mass = log(trt_mean[trt == "NPK"] /
+                     trt_mean[trt == "Control"])
+  )
+
+
+site_slopes_lrr_mass <- left_join(site_slopes, site_lrr_mass, by = "site_code")
+
+
+site_mass_fig <- ggplot(data = site_slopes_lrr_mass, aes(x = lrr_mass, y = control_slope)) +
+  geom_point() +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Response to NPK (log response ratio)",
+       y = "Response to precipitation \n(slope of mass vs. precipitation)",
+       title = "Site biomass responses to precipitation and NPK") +
+  scale_y_continuous(limits = c(-1.5, 3)) +
+  scale_x_continuous(limits = c(-0.15, 1)) +
+  theme_bw(base_size = 14) +
+  theme(legend.position = "none")
+
+site_mass_fig
+
+site_mass_model <- lm(control_slope ~ lrr_mass, data = site_slopes_lrr_mass)
+summary(site_mass_model)
+
+
+
 
 
 
