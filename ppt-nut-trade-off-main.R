@@ -144,12 +144,18 @@ for (site in site_codes) {
 
 
 ## Calculate log response ratio of mass to trt
-site_lrr_mass <- mass_ppt_edited %>%
+site_trt_mean_mass <- mass_ppt_edited %>%
+  group_by(site_code, trt) %>%
+  summarize(
+    trt_mean = mean(live_mass, na.rm = TRUE))
+
+
+site_lrr_mass <- site_trt_mean_mass %>%
   group_by(site_code) %>%
   summarize(
-    lrr_mass = log(mean(live_mass[trt == "NPK"], na.rm = TRUE) /
-                     mean(live_mass[trt == "Control"], na.rm = TRUE))
-  )
+    lrr_mass = log(trt_mean[trt == "NPK"] /
+                     trt_mean[trt == "Control"])
+    )
 
 
 site_slopes_lrr_mass <- left_join(site_slopes, site_lrr_mass, by = "site_code")
@@ -177,15 +183,13 @@ summary(site_mass_model)
 cover <- read.csv("/Users/ingridslette/Desktop/full-cover-2025-12-09.csv",
                   na.strings = c("NULL","NA"))
 
-cover <- cover %>%
-  filter(site_code %in% site_codes)
-
-cover <- cover %>%
-  filter(live == 1)
-
 cover1 <- cover %>%
-  filter(cover, trt %in% c("Control", "NPK")) 
-
+  filter(
+    site_code %in% site_codes,
+    live == 1,
+    year_trt > 0,
+    trt %in% c("Control", "NPK")
+  )
 
 # Add rows for species found in a plot in some but not all years
 
@@ -199,7 +203,7 @@ full_design <- taxa_by_plot %>%
   left_join(years_by_site, by = "site_code")
 
 cover_focal_cols <- cover1 %>%
-  distinct(year, site_code, plot, Taxon, max_cover)
+  distinct(site_code, plot, Taxon, year, max_cover)
 
 cover_trait_cols <- cover1 %>%
   distinct(Taxon, site_code, Family, functional_group, local_lifeform, 
@@ -214,6 +218,12 @@ cover_complete <- cover_complete %>%
 
 cover_complete <- cover_complete %>%
    left_join(cover_trait_cols, by = c("site_code", "Taxon"))
+
+
+cover_mass_ppt <- cover_complete %>%
+  left_join(mass_ppt_edited, by = c("site_code", "year", "block", "plot", "trt", "year_trt"))
+
+
 
 
 
