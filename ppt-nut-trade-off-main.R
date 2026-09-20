@@ -2,15 +2,7 @@ library(tidyverse)
 library(lme4)
 library(lmerTest)
 library(performance)
-#library(boot)
-#library(MuMIn)
-#library(MASS)
-#library(broom)
-#library(broom.mixed)
-#library(emmeans)
-#library(ggpubr)
-#library(cowplot)
-#library(ggeffects)
+
 
 ### Loading, viewing, and filtering precipitation and mass data 
 
@@ -49,15 +41,6 @@ sites_with_6_years <- site_year_counts %>%
 mass6 <- mass1 %>%
   filter(site_code %in% sites_with_6_years$site_code)
 
-sites_with_5_years <- site_year_counts %>%
-  filter(year_count >= 5) %>%
-  group_by(site_code) %>% 
-  filter(n_distinct(trt) == 2) 
-
-mass5 <- mass1 %>%
-  filter(site_code %in% sites_with_5_years$site_code)
-
-unique(mass5$site_code) 
 unique(mass6$site_code)
 
 ## popped over to script "calculate-gs-ppt-pet.R" here, to get growing season ppt for the sites included in mass2
@@ -191,86 +174,85 @@ cover1 <- cover %>%
     trt %in% c("Control", "NPK")
   )
 
-# Add rows for species found in a plot in some but not all years
-
+# Add rows for species found in some but not all plots and years at a site
 years_by_site <- cover1 %>%
   distinct(site_code, year, year_trt)
 
-taxa_by_plot <- cover1 %>%
-  distinct(site_code, site_name, block, plot, subplot, trt, Taxon)
+plots <- cover1 %>%
+  distinct(site_code, site_name, block, plot, subplot, trt)
 
-full_design <- taxa_by_plot %>%
+taxa_by_site <- cover1 %>%
+  distinct(site_code, Taxon)
+
+full_design <- plots %>%
+  left_join(taxa_by_site, by = "site_code") %>%
   left_join(years_by_site, by = "site_code")
+
 
 cover_focal_cols <- cover1 %>%
   distinct(site_code, plot, Taxon, year, max_cover)
 
-cover_trait_cols <- cover1 %>%
-  distinct(Taxon, site_code, Family, functional_group, local_lifeform, 
-           local_lifespan, local_provenance, ps_path)
-
 cover_complete <- full_design %>%
-  left_join(cover_focal_cols, by = c("site_code", "plot", "Taxon", "year")) %>%
+  left_join(cover_focal_cols,
+            by = c("site_code", "plot", "Taxon", "year")) %>%
   mutate(max_cover = replace_na(max_cover, 0))
 
-cover_complete <- cover_complete %>%
-  mutate(max_cover = max_cover + 0.01)
+
+cover_trait_cols <- cover1 %>%
+  distinct(site_code, Taxon, Family, functional_group, local_lifeform, 
+           local_lifespan, local_provenance, ps_path)
 
 cover_complete <- cover_complete %>%
-   left_join(cover_trait_cols, by = c("site_code", "Taxon"))
+  left_join(cover_trait_cols, by = c("site_code", "Taxon"))
 
 
+# Join ppt (and mass) data to cover data
 cover_mass_ppt <- cover_complete %>%
   left_join(mass_ppt_edited, by = c("site_code", "year", "block", "plot", "trt", "year_trt"))
 
 
-### Calculate slope of ppt vs max_cover for each site-Taxon combination
-
+## Calculate slope of ppt vs max_cover for each site-Taxon combination
 cover_slopes <- cover_mass_ppt %>%
   group_by(site_code, Taxon, trt) %>%
   summarise(
     slope = coef(lm(max_cover ~ ppt))[2],
     .groups = "drop"
-  )
-
-cover_slopes_wide <- cover_slopes %>%
-  pivot_wider(names_from = trt, values_from = slope)
-
+  ) %>%
+  pivot_wider(names_from = trt, values_from = slope, names_glue = "{trt}_slope")
 
 
 ## Calculate log response ratio of each site-Taxon combination to trt
-site_spp_trt_mean_cover <- cover_mass_ppt %>%
+site_spp_lrr_cover <- cover_mass_ppt %>%
   group_by(site_code, Taxon, trt) %>%
   summarize(
-    trt_mean = mean(max_cover, na.rm = TRUE))
-
-site_spp_lrr_cover <- site_spp_trt_mean_cover %>%
-  group_by(site_code, Taxon) %>%
-  summarize(
-    lrr_mass = log(trt_mean[trt == "NPK"] /
-                     trt_mean[trt == "Control"])
-  )
-
-
-site_slopes_lrr_mass <- left_join(site_slopes, site_lrr_mass, by = "site_code")
+    trt_mean = mean(max_cover, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_wider(names_from = trt, values_from = trt_mean, names_glue = "{trt}_cover") %>%
+  mutate(
+    Control_cover = Control_cover + 0.01,
+    NPK_cover     = NPK_cover + 0.01,
+    lrr_cover = log(NPK_cover / Control_cover)
+    )
 
 
-site_mass_fig <- ggplot(data = site_slopes_lrr_mass, aes(x = lrr_mass, y = control_slope)) +
+spp_site_slopes_lrr_cover <- left_join(cover_slopes, site_spp_lrr_cover, by = c("site_code", "Taxon"))
+
+
+site_cover_fig <- ggplot(data = spp_site_slopes_lrr_cover, aes(x = lrr_cover, y = Control_slope)) +
   geom_point() +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed") +
   labs(x = "Response to NPK (log response ratio)",
-       y = "Response to precipitation \n(slope of mass vs. precipitation)",
-       title = "Site biomass responses to precipitation and NPK") +
-  scale_y_continuous(limits = c(-1.5, 3)) +
-  scale_x_continuous(limits = c(-0.15, 1)) +
+       y = "Response to precipitation \n(slope of cover vs. precipitation)",
+       title = "Site cover responses to precipitation and NPK") +
   theme_bw(base_size = 14) +
   theme(legend.position = "none")
 
-site_mass_fig
+site_cover_fig
 
-site_mass_model <- lm(control_slope ~ lrr_mass, data = site_slopes_lrr_mass)
-summary(site_mass_model)
+site_cover_model <- lm(Control_slope ~ lrr_cover, data = spp_site_slopes_lrr_cover)
+summary(site_cover_model)
 
 
 
