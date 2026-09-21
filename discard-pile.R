@@ -9,8 +9,173 @@
 #library(ggeffects)
 
 
+## DIAGNOSTICS ON BIOMASS DATASET
 
-### Main model
+
+# Which sites/years are missing ppt?
+biomass_precip %>% filter(is.na(ppt)) %>% count(site_code, year)
+
+# Which sites report which biomass categories?
+biomass_precip %>%
+  group_by(site_code) %>%
+  summarise(cats = paste(sort(unique(category)), collapse = ", ")) %>%
+  print(n = Inf)
+
+# Count of biomass categories
+table(biomass_precip$category, useNA = "ifany")
+
+# How many sites use each category?
+bio %>% distinct(site_code, category) %>%
+  count(category, name = "n_sites") %>% arrange(desc(n_sites))
+
+# Where do uncommon labels occur?
+bio %>% filter(category %in% c("LIVE", "VASCULAR", "FORB + PHLOX DIFFUSA", "CACTUS")) %>%
+  distinct(site_code, year, category) %>% arrange(site_code, year)
+
+
+
+# Add column to indicate if row is total biomass
+bio <- biomass_precip %>%
+  filter(!is.na(ppt)) %>%
+  mutate(is_total_row = category %in% c("LIVE"))
+
+# Which site-years report totals only, categories only, or both?
+sy_type <- bio %>%
+  group_by(site_code, year, plot) %>%
+  summarise(has_total = any(is_total_row),
+            has_cat   = any(!is_total_row), .groups = "drop")
+count(sy_type, has_total, has_cat)
+
+
+# Double-counting check: plot-years with VASCULAR/LIVE AND other vascular categories
+bio %>%
+  group_by(site_code, year, plot) %>%
+  summarise(pooled = any(category %in% c("VASCULAR", "LIVE")),
+            split  = any(category %in% c("GRAMINOID", "FORB", "LEGUME", "WOODY")),
+            .groups = "drop") %>%
+  count(pooled, split)
+
+# Are plots missing categories that other plots at the same site-year have?
+# (Missing rows may mean zero biomass, or "not measured".)
+bio %>%
+  group_by(site_code, year) %>%
+  mutate(n_plots = n_distinct(plot)) %>%
+  group_by(site_code, year, category) %>%
+  summarise(frac_plots = n_distinct(plot) / first(n_plots), .groups = "drop") %>%
+  filter(frac_plots < 1) %>% count(category)
+
+
+vasc_labels <- c("GRAMINOID", "FORB", "FORB + PHLOX DIFFUSA", "LEGUME", "WOODY",
+                 "CACTUS", "PTERIDOPHYTE", "VASCULAR", "LIVE")
+
+
+
+
+core <- c("GRAMINOID", "FORB", "LEGUME", "WOODY")
+
+# 1. Check that Phlox labelling doesn't double-count
+phlox_sites <- bio %>% filter(category == "FORB + PHLOX DIFFUSA") %>% distinct(site_code)
+bio %>% semi_join(phlox_sites, by = "site_code") %>%
+  group_by(site_code, year, plot) %>%
+  summarise(both = all(c("FORB", "FORB + PHLOX DIFFUSA") %in% category), .groups = "drop") %>%
+  count(both)   # want all FALSE
+
+# 2. Recode and sum any duplicates
+bio2 <- bio %>%
+  mutate(category = recode(category, "FORB + PHLOX DIFFUSA" = "FORB")) %>%
+  filter(category %in% c(core, "VASCULAR", "LIVE")) %>%
+  group_by(site_code, year, year_trt, trt, block, plot, ppt, avg_ppt, sd_ppt, category) %>%
+  summarise(mass = sum(mass), .groups = "drop")
+
+# 3. Site-years with split data only (drop pooled site-years)
+pooled_sy <- bio2 %>% filter(category %in% c("VASCULAR", "LIVE")) %>% distinct(site_code, year)
+split_sy  <- bio2 %>% filter(category %in% core) %>% distinct(site_code, year) %>%
+  anti_join(pooled_sy, by = c("site_code", "year"))
+
+# 4. Which categories each site ever recorded
+site_cat <- bio2 %>% filter(category %in% core) %>% distinct(site_code, category)
+
+# 5. Plot skeleton x recorded categories, then fill zeros
+plots <- bio2 %>%
+  semi_join(split_sy, by = c("site_code", "year")) %>%
+  distinct(site_code, year, year_trt, trt, block, plot, ppt, avg_ppt, sd_ppt)
+
+bio_cat <- plots %>%
+  inner_join(site_cat, by = "site_code", relationship = "many-to-many") %>%
+  left_join(bio2 %>% filter(category %in% core) %>%
+              select(site_code, year, plot, category, mass),
+            by = c("site_code", "year", "plot", "category")) %>%
+  mutate(mass = tidyr::replace_na(mass, 0),
+         precip_z = (ppt - avg_ppt) / sd_ppt,
+         trt = factor(trt, levels = c("Control", "NPK")))
+
+
+bio_cat %>%
+  group_by(site_code, category) %>%
+  summarise(n_years = n_distinct(year[mass > 0]),
+            n_years_total = n_distinct(year),
+            prop_zero = mean(mass == 0), .groups = "drop") %>%
+  filter(prop_zero > 0.8) %>% arrange(desc(prop_zero))
+
+
+
+bio %>%
+  semi_join(phlox_sites, by = "site_code") %>%
+  filter(category %in% c("FORB", "FORB + PHLOX DIFFUSA")) %>%
+  group_by(site_code, year, plot) %>% filter(n() > 1) %>%
+  arrange(site_code, year, plot, category) %>%
+  select(site_code, year, plot, trt, category, mass)
+
+
+bio %>%
+  filter(site_code == "bnch.us", category %in% c("FORB", "FORB + PHLOX DIFFUSA")) %>%
+  group_by(year, category) %>%
+  summarise(n_plots = n_distinct(plot), mean_mass = mean(mass), .groups = "drop") %>%
+  arrange(year, category)
+
+# Site-year-category combos that are absent from ALL plots,
+# at sites that recorded the category in other years
+site_year_cat <- bio2 %>%
+  filter(category %in% core) %>%
+  distinct(site_code, year, category)
+
+gaps <- split_sy %>%
+  inner_join(site_cat, by = "site_code", relationship = "many-to-many") %>%
+  anti_join(site_year_cat, by = c("site_code", "year", "category"))
+
+gaps %>% count(category)     # how common is it?
+gaps %>% arrange(site_code, year, category) %>% print(n = 50)
+
+
+
+n_sy <- split_sy %>% count(site_code, name = "n_sy_total")
+
+prev <- bio_cat_f %>%
+  group_by(site_code, category) %>%
+  summarise(n_nz_years = n_distinct(year[mass > 0]), .groups = "drop") %>%
+  left_join(n_sy, by = "site_code") %>%
+  mutate(prev_nz = n_nz_years / n_sy_total)
+
+gaps_flag <- gaps %>%
+  semi_join(keep, by = c("site_code", "category")) %>%   # only combos that survived the filter
+  left_join(prev, by = c("site_code", "category")) %>%
+  mutate(suspicious = category %in% c("FORB", "GRAMINOID") | prev_nz >= 0.5)
+
+gaps_flag %>% count(category, suspicious)
+
+# Look at them by eye: are they isolated years or runs of years?
+gaps_flag %>% filter(suspicious) %>% arrange(site_code, category, year) %>% print(n = Inf)
+
+bio_cat_final <- bio_cat_f %>%
+  anti_join(filter(gaps_flag, suspicious), by = c("site_code", "year", "category"))
+
+
+
+
+
+
+
+### MAIN MODEL
 
 main_model <- lmer(log_mass ~ log_ppt * trt + (1 | site_code / block) + (1 | year), 
                    data = mass_ppt, na.action = na.exclude)
