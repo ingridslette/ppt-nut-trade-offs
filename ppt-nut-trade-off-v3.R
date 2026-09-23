@@ -1,5 +1,4 @@
 
-
 library(tidyverse)
 library(lme4)
 library(lmerTest)
@@ -118,7 +117,7 @@ fg_list <- c("GRAMINOID", "FORB", "WOODY", "LEGUME")
 # (1 | year) is always kept: it absorbs shared weather, and for the precip
 # slope it is what makes the slope's SE reflect year-level replication.
 rand_ladder <- c(
-  full      = "(1 | year) + (1 | block) + (1 | plot)",
+  full      = "(1 | year) + (1 | block/plot)",
   no_block  = "(1 | year) + (1 | plot)",
   no_plot   = "(1 | year) + (1 | block)",
   year_only = "(1 | year)"
@@ -282,7 +281,7 @@ model_total_biomass <- lm(control_slope ~ lrr_mass, data = slopes_lrr_total_biom
 summary(model_total_biomass)
 
 mixed_model_total_biomass <- lmer(log_mass ~ trt * precip_z +
-                                    (1 | site_code/plot) + (1 | site_code:year),
+                                    (1 | site_code/block/plot) + (1 | site_code:year),
                                   data = total_biomass_precip)
 summary(mixed_model_total_biomass)
 
@@ -420,11 +419,349 @@ model_fg_biomass_x <- lmer(control_slope ~ lrr_mass * category + (1 | site_code)
 summary(model_fg_biomass_x)
 
 # Plot-level global model (formula unchanged; now fit to the fg_keep-filtered data).
-# Consider adding trt/precip_z x category interactions and a
-# (1 | site_code:plot:category) term, as discussed.
+
 mixed_model_fg_biomass <- lmer(log_mass ~ trt * precip_z + category +
-                                 (1 | site_code/plot) + (1 | site_code:year),
+                                 (1 | site_code/block/plot) + (1 | site_code:year),
                                data = fg_biomass_complete_precip)
 summary(mixed_model_fg_biomass)
+
+mixed_model_fg_biomass_x <- lmer(log_mass ~ trt * precip_z * category +
+                                 (1 | site_code/block/plot) + (1 | site_code:year),
+                               data = fg_biomass_complete_precip)
+summary(mixed_model_fg_biomass_x)
+
+
+
+
+## LOAD AND FILTER COVER DATA
+cover <- read.csv("/Users/ingridslette/Desktop/NutNet/full-cover-2026-06-04.csv",
+                  na.strings = c("NULL","NA"))
+
+str(cover)
+summary(cover)
+
+cover <- cover %>%
+  filter(
+    live == 1,
+    year_trt > 0,
+    trt %in% c("Control", "NPK")
+  )
+
+site_year_counts_cover <- cover %>%
+  group_by(site_code, trt) %>% 
+  summarise(year_count = n_distinct(year), .groups = 'drop')
+
+sites_with_6_years_cover <- site_year_counts_cover %>%
+  filter(year_count >= 6) %>%
+  group_by(site_code) %>% 
+  filter(n_distinct(trt) == 2) 
+
+cover6 <- cover %>%
+  filter(site_code %in% sites_with_6_years_cover$site_code)
+
+unique(cover6$site_code) ## more sites with >5 years of cover data than with >5 years of biomass data
+unique(biomass6$site_code) ## every site with >5 years of cover data has >5 years of biomass data
+
+cover6 <- cover %>%
+  filter(site_code %in% biomass_precip$site_code)
+
+unique(cover6$site_code)
+unique(cover6$year)
+
+# check if same site-year combos for biomass
+biomass_site_years <- biomass_precip %>% distinct(site_code, year)
+
+cover6 <- cover %>%
+  semi_join(biomass_site_years, by = c("site_code", "year"))
+
+# re-check 6-year/both-trt requirement on this reduced set
+site_year_counts_cover <- cover6 %>%
+  group_by(site_code, trt) %>%
+  summarise(year_count = n_distinct(year), .groups = "drop")
+
+sites_ok_cover <- site_year_counts_cover %>%
+  filter(year_count >= 6) %>%
+  group_by(site_code) %>%
+  filter(n_distinct(trt) == 2)
+
+unique(sites_ok_cover$site_code)
+
+cover6 <- cover6 %>% filter(site_code %in% sites_ok_cover$site_code)
+
+setdiff(unique(biomass_precip$site_code), unique(cover6$site_code))
+
+site_year_counts_cover %>%
+  anti_join(sites_ok_cover, by = "site_code") %>%
+  filter(site_code %in% biomass_precip$site_code)
+
+
+# Add rows for species found in some but not all plots and years at a site
+plot_years <- cover6 %>%
+  distinct(site_code, site_name, block, plot, trt, year, year_trt)
+
+taxa_by_site <- cover6 %>%
+  distinct(site_code, Taxon)
+
+full_design <- plot_years %>%
+  left_join(taxa_by_site, by = "site_code", relationship = "many-to-many")
+
+cover_focal_cols <- cover6 %>%
+  distinct(site_code, plot, Taxon, year, max_cover)
+
+cover_complete <- full_design %>%
+  left_join(cover_focal_cols,
+            by = c("site_code", "plot", "Taxon", "year")) %>%
+  mutate(max_cover = replace_na(max_cover, 0))
+
+cover_trait_cols <- cover6 %>%
+  distinct(site_code, Taxon, Family, functional_group, local_lifeform, 
+           local_lifespan, local_provenance, ps_path)
+
+# Check for inconsistent/duplicate trait rows per site-taxon before collapsing
+dup_traits <- cover_trait_cols %>% count(site_code, Taxon) %>% filter(n > 1)
+nrow(dup_traits)  # how many site-taxon combos have >1 row
+
+# Collapse to one row per site-taxon: first non-NA value in each trait column
+first_non_na <- function(x) {
+  x_clean <- x[!is.na(x)]
+  if (length(x_clean) == 0) NA_character_ else x_clean[1]
+}
+
+cover_trait_cols <- cover_trait_cols %>%
+  group_by(site_code, Taxon) %>%
+  summarise(across(c(Family, functional_group, local_lifeform,
+                     local_lifespan, local_provenance, ps_path),
+                   first_non_na),
+            .groups = "drop")
+
+# Confirm the fix worked
+stopifnot(!anyDuplicated(cover_trait_cols[c("site_code", "Taxon")]))
+
+cover_complete <- cover_complete %>%
+  left_join(cover_trait_cols, by = c("site_code", "Taxon"), relationship = "many-to-many")
+
+# Join precip data to 0-filled cover data
+cover_precip <- inner_join(cover_complete, precip, by = c("site_code", "year"))
+
+unique(cover_precip$functional_group)
+
+# Merge GRASS into GRAMINOID to match biomass category definitions
+# (biomass doesn't separate grasses from other graminoids)
+cover_precip <- cover_precip %>%
+  mutate(functional_group = recode(functional_group, "GRASS" = "GRAMINOID"))
+
+
+
+##############################################################################
+# NutNet: species-level and functional-group cover sensitivity to
+# precipitation vs. NPK fertilization
+#
+# Assumes cover_precip already exists (from your loading/filtering/0-fill/
+# trait-dedup code), with columns: site_code, site_name, block, plot, trt,
+# year, year_trt, Taxon, max_cover, Family, functional_group, local_lifeform,
+# local_lifespan, local_provenance, ps_path, ppt, avg_ppt, sd_ppt, precip_z.
+#
+# Also assumes fit_site_lmm() and classify_slope() are already defined
+# (from the biomass analysis script) -- paste/source that section first.
+##############################################################################
+
+##### SETTINGS #####
+pc_cover     <- 0.1   # pseudocount for log-transforming cover (0-100 scale;
+# try 1 as a sensitivity check -- 0.01 may be too small
+# relative to typical cover values and make true zeros
+# dominate the log scale)
+fg_list_cover <- c("GRAMINOID", "FORB", "WOODY", "LEGUME")
+
+
+##### SPECIES-LEVEL ANALYSIS #####
+
+## Keep only site x species combos present (cover > 0 in any plot) in >= 4 years
+species_keep <- cover_precip %>%
+  group_by(site_code, Taxon, year) %>%
+  summarise(present = any(max_cover > 0), .groups = "drop") %>%
+  filter(present) %>%
+  group_by(site_code, Taxon) %>%
+  summarise(n_years_present = n(), .groups = "drop") %>%
+  filter(n_years_present >= 4)
+
+cover_precip_species <- cover_precip %>%
+  semi_join(species_keep, by = c("site_code", "Taxon")) %>%
+  mutate(log_cover = log(max_cover + pc_cover),
+         trt = factor(trt, levels = c("Control", "NPK")))
+
+# How many site x species models will be fit? This can be large -- check
+# before running, since each is a separate lmer() call (or several, via the
+# fallback ladder).
+n_distinct(cover_precip_species %>% distinct(site_code, Taxon))
+
+## Precip slope per site x species (control plots only)
+slopes_species_cover <- cover_precip_species %>%
+  filter(trt == "Control") %>%
+  group_by(site_code, Taxon) %>%
+  group_modify(~ fit_site_lmm(.x, fixed = "precip_z", term = "precip_z",
+                              response = "log_cover")) %>%
+  ungroup() %>%
+  rename_with(~ paste0("control_", .x), -c(site_code, Taxon)) %>%
+  rename(control_slope = control_estimate, control_p = control_p_value)
+
+## NPK effect (log response ratio) per site x species
+lrr_species_cover <- cover_precip_species %>%
+  group_by(site_code, Taxon) %>%
+  group_modify(~ fit_site_lmm(.x, fixed = "trt", term = "trtNPK",
+                              response = "log_cover")) %>%
+  ungroup() %>%
+  transmute(site_code, Taxon,
+            lrr_cover = estimate, lrr_cover_se = se,
+            lrr_cover_ci_low = ci_low, lrr_cover_ci_high = ci_high,
+            lrr_df = df, lrr_singular = singular, lrr_model = model)
+
+# Diagnostics
+table(slopes_species_cover$control_model, useNA = "ifany")
+table(lrr_species_cover$lrr_model, useNA = "ifany")
+table(slopes_species_cover$control_singular, useNA = "ifany")
+table(lrr_species_cover$lrr_singular, useNA = "ifany")
+
+## Join, classify, tally
+slopes_lrr_species_cover <- left_join(slopes_species_cover, lrr_species_cover,
+                                      by = c("site_code", "Taxon")) %>%
+  left_join(distinct(cover_precip, site_code, Taxon, functional_group),
+            by = c("site_code", "Taxon")) %>%
+  mutate(
+    precip_response = classify_slope(control_ci_low, control_ci_high),
+    npk_response    = classify_slope(lrr_cover_ci_low, lrr_cover_ci_high),
+    quadrant = paste(npk_response, precip_response, sep = " / ")
+  )
+
+response_counts_species_cover <- slopes_lrr_species_cover %>%
+  filter(!is.na(precip_response), !is.na(npk_response)) %>%
+  count(npk_response, precip_response, name = "n_site_species") %>%
+  complete(npk_response    = c("positive", "none", "negative"),
+           precip_response = c("positive", "none", "negative"),
+           fill = list(n_site_species = 0))
+
+print(response_counts_species_cover)
+
+plot_species_cover <- ggplot(slopes_lrr_species_cover,
+                             aes(x = lrr_cover, y = control_slope, color = quadrant)) +
+  geom_point(size = 1.5, alpha = 0.5) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Response to NPK (mean log response ratio)",
+       y = "Response to precipitation\n(slope of log cover vs. precip z-score)",
+       title = "Species-level cover responses to precipitation and NPK",
+       color = "Response type") +
+  theme_bw(base_size = 14)
+
+plot_species_cover
+
+## Cross-site model: does a species' precip sensitivity predict its NPK response?
+model_species_cover <- lmer(control_slope ~ lrr_cover + (1 | site_code) + (1 | Taxon),
+                            data = slopes_lrr_species_cover)
+summary(model_species_cover)
+
+
+##### FUNCTIONAL-GROUP-LEVEL ANALYSIS #####
+
+## Roll species up to functional-group cover per plot-year (sum across taxa
+## within each functional group; 0-filled species contribute 0)
+fg_cover_precip <- cover_precip %>%
+  filter(functional_group %in% fg_list_cover) %>%
+  group_by(site_code, site_name, block, plot, trt, year, year_trt,
+           functional_group, ppt, avg_ppt, sd_ppt, precip_z) %>%
+  summarise(fg_cover = sum(max_cover, na.rm = TRUE), .groups = "drop")
+
+## Keep only site x FG combos present (cover > 0 in any plot) in >= 4 years
+fg_cover_keep <- fg_cover_precip %>%
+  group_by(site_code, functional_group, year) %>%
+  summarise(present = any(fg_cover > 0), .groups = "drop") %>%
+  filter(present) %>%
+  group_by(site_code, functional_group) %>%
+  summarise(n_years_present = n(), .groups = "drop") %>%
+  filter(n_years_present >= 4)
+
+fg_cover_precip <- fg_cover_precip %>%
+  semi_join(fg_cover_keep, by = c("site_code", "functional_group")) %>%
+  mutate(log_cover = log(fg_cover + pc_cover),
+         trt = factor(trt, levels = c("Control", "NPK")))
+
+## Precip slope per site x FG (control plots only)
+slopes_fg_cover <- fg_cover_precip %>%
+  filter(trt == "Control") %>%
+  group_by(site_code, functional_group) %>%
+  group_modify(~ fit_site_lmm(.x, fixed = "precip_z", term = "precip_z",
+                              response = "log_cover")) %>%
+  ungroup() %>%
+  rename_with(~ paste0("control_", .x), -c(site_code, functional_group)) %>%
+  rename(control_slope = control_estimate, control_p = control_p_value)
+
+## NPK effect (log response ratio) per site x FG
+lrr_fg_cover <- fg_cover_precip %>%
+  group_by(site_code, functional_group) %>%
+  group_modify(~ fit_site_lmm(.x, fixed = "trt", term = "trtNPK",
+                              response = "log_cover")) %>%
+  ungroup() %>%
+  transmute(site_code, functional_group,
+            lrr_cover = estimate, lrr_cover_se = se,
+            lrr_cover_ci_low = ci_low, lrr_cover_ci_high = ci_high,
+            lrr_df = df, lrr_singular = singular, lrr_model = model)
+
+# Diagnostics
+table(slopes_fg_cover$control_model, useNA = "ifany")
+table(lrr_fg_cover$lrr_model, useNA = "ifany")
+table(slopes_fg_cover$control_singular, useNA = "ifany")
+table(lrr_fg_cover$lrr_singular, useNA = "ifany")
+
+## Join, classify, tally
+slopes_lrr_fg_cover <- left_join(slopes_fg_cover, lrr_fg_cover,
+                                 by = c("site_code", "functional_group")) %>%
+  mutate(
+    precip_response = classify_slope(control_ci_low, control_ci_high),
+    npk_response    = classify_slope(lrr_cover_ci_low, lrr_cover_ci_high),
+    quadrant = paste(npk_response, precip_response, sep = " / ")
+  )
+
+response_counts_fg_cover <- slopes_lrr_fg_cover %>%
+  filter(!is.na(precip_response), !is.na(npk_response)) %>%
+  count(functional_group, npk_response, precip_response, name = "n_sites") %>%
+  complete(functional_group,
+           npk_response    = c("positive", "none", "negative"),
+           precip_response = c("positive", "none", "negative"),
+           fill = list(n_sites = 0))
+
+print(response_counts_fg_cover)
+
+plot_fg_cover <- ggplot(slopes_lrr_fg_cover,
+                        aes(x = lrr_cover, y = control_slope, color = quadrant)) +
+  geom_point(size = 2, alpha = 0.6) +
+  facet_wrap(~ functional_group) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Response to NPK (mean log response ratio)",
+       y = "Response to precipitation\n(slope of log cover vs. precip z-score)",
+       title = "FG cover responses to precipitation and NPK",
+       color = "Response category") +
+  theme_bw(base_size = 14)
+
+plot_fg_cover
+
+## Cross-site model, parallel to the FG biomass version
+model_fg_cover <- lmer(control_slope ~ lrr_cover + functional_group + (1 | site_code),
+                       data = slopes_lrr_fg_cover)
+summary(model_fg_cover)
+
+model_fg_cover_x <- lmer(control_slope ~ lrr_cover * functional_group + (1 | site_code),
+                         data = slopes_lrr_fg_cover)
+summary(model_fg_cover_x)
+
+## Plot-level global model, parallel to mixed_model_fg_biomass
+mixed_model_fg_cover <- lmer(log_cover ~ trt * precip_z + functional_group +
+                               (1 | site_code/block/plot) + (1 | site_code:year),
+                             data = fg_cover_precip)
+summary(mixed_model_fg_cover)
+
+mixed_model_fg_cover_x <- lmer(log_cover ~ trt * precip_z * functional_group +
+                                 (1 | site_code/block/plot) + (1 | site_code:year),
+                               data = fg_cover_precip)
+summary(mixed_model_fg_cover_x)
 
 
