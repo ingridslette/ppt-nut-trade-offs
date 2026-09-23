@@ -456,8 +456,8 @@ taxa_by_site <- cover6 %>%
   distinct(site_code, Taxon)
 
 full_design <- plots %>%
-  left_join(taxa_by_site, by = "site_code") %>%
-  left_join(years_by_site, by = "site_code")
+  left_join(taxa_by_site, by = "site_code", relationship = "many-to-many") %>%
+  left_join(years_by_site, by = "site_code", relationship = "many-to-many")
 
 cover_focal_cols <- cover6 %>%
   distinct(site_code, plot, Taxon, year, max_cover)
@@ -472,11 +472,10 @@ cover_trait_cols <- cover6 %>%
            local_lifespan, local_provenance, ps_path)
 
 cover_complete <- cover_complete %>%
-  left_join(cover_trait_cols, by = c("site_code", "Taxon"))
+  left_join(cover_trait_cols, by = c("site_code", "Taxon"), relationship = "many-to-many")
 
 # Join precip data to 0-filled cover data
 cover_precip <- inner_join(cover_complete, precip, by = c("site_code", "year"))
-
 
 
 ### -------------------------------------------------------------------------
