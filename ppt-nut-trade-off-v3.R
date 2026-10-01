@@ -250,9 +250,8 @@ plot_total_biomass <- ggplot(slopes_lrr_total_biomass,
   geom_point(size = 2.5, alpha = 0.85) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(x = "Response to NPK (mean log response ratio)",
-       y = "Response to precipitation\n(slope of log biomass vs. precip z-score)",
-       title = "Total biomass responses to precipitation and NPK",
+  labs(x = "Response to NPK",
+       y = "Response to precipitation",
        color = "Response type") +
   theme_bw(base_size = 14)
 
@@ -389,9 +388,8 @@ plot_fg_biomass <- ggplot(slopes_lrr_fg_biomass,
   facet_wrap(~ category) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(x = "Response to NPK (mean log response ratio)",
-       y = "Response to precipitation\n(slope of log biomass vs. precip z-score)",
-       title = "FG biomass responses to precipitation and NPK",
+  labs(x = "Response to NPK",
+       y = "Response to precipitation",
        color = "Response category") +
   theme_bw(base_size = 14)
 
@@ -646,9 +644,8 @@ plot_species_cover <- ggplot(slopes_lrr_species_cover,
   geom_point(size = 1.5, alpha = 0.5) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(x = "Response to NPK (mean log response ratio)",
-       y = "Response to precipitation\n(slope of log cover vs. precip z-score)",
-       title = "Species-level cover responses to precipitation and NPK",
+  labs(x = "Response to NPK",
+       y = "Response to precipitation",
        color = "Response type") +
   theme_bw(base_size = 14)
 
@@ -736,9 +733,8 @@ plot_fg_cover <- ggplot(slopes_lrr_fg_cover,
   facet_wrap(~ functional_group) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(x = "Response to NPK (mean log response ratio)",
-       y = "Response to precipitation\n(slope of log cover vs. precip z-score)",
-       title = "FG cover responses to precipitation and NPK",
+  labs(x = "Response to NPK",
+       y = "Response to precipitation",
        color = "Response category") +
   theme_bw(base_size = 14)
 
@@ -764,4 +760,16 @@ mixed_model_fg_cover_x <- lmer(log_cover ~ trt * precip_z * functional_group +
                                data = fg_cover_precip)
 summary(mixed_model_fg_cover_x)
 
+
+slopes_lrr_fg_cover %>%
+  filter(!is.na(control_slope), !is.na(lrr_cover)) %>%
+  group_by(functional_group) %>%
+  summarise(r = cor(control_slope, lrr_cover), n = n(), .groups = "drop")
+
+
+
+
+model_forb_cover <- lmer(control_slope ~ lrr_cover,
+                       data = subset(slopes_lrr_fg_cover, functional_group = "FORB"))
+summary(model_forb_cover)
 
