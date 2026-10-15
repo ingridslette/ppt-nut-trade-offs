@@ -63,7 +63,6 @@ classify_slope <- function(ci_low, ci_high) {
 }
 
 
-
 #### LOAD AND FILTER BIOMASS DATA ####
 biomass <- read.csv("/Users/ingridslette/Desktop/NutNet/full-biomass-2026-06-04.csv",
                     na.strings = c("NULL","NA"))
@@ -143,36 +142,9 @@ unique(cover6$site_code) ## more sites with >5 years of cover data than with >5 
 unique(biomass6$site_code) ## every site with >5 years of cover data has >5 years of biomass data
 
 cover6 <- cover %>%
-  filter(site_code %in% biomass_precip$site_code)
+  filter(site_code %in% biomass6$site_code)
 
 unique(cover6$site_code)
-unique(cover6$year)
-
-# check if same site-year combos for biomass
-biomass_site_years <- biomass_precip %>% distinct(site_code, year)
-
-cover6 <- cover %>%
-  semi_join(biomass_site_years, by = c("site_code", "year"))
-
-# re-check 6-year/both-trt requirement on this reduced set
-site_year_counts_cover <- cover6 %>%
-  group_by(site_code, trt) %>%
-  summarise(year_count = n_distinct(year), .groups = "drop")
-
-sites_ok_cover <- site_year_counts_cover %>%
-  filter(year_count >= 6) %>%
-  group_by(site_code) %>%
-  filter(n_distinct(trt) == 2)
-
-unique(sites_ok_cover$site_code)
-
-cover6 <- cover6 %>% filter(site_code %in% sites_ok_cover$site_code)
-
-setdiff(unique(biomass_precip$site_code), unique(cover6$site_code))
-
-site_year_counts_cover %>%
-  anti_join(sites_ok_cover, by = "site_code") %>%
-  filter(site_code %in% biomass_precip$site_code)
 
 
 #### SET UP TOTAL BIOMASS DATASET FOR ANALYSIS ####
@@ -241,11 +213,9 @@ fg_biomass <- biomass_precip %>%
   filter(category %in% fg_list)
 
 ## Check no duplicate FGs per plot
-mass_cat_block_counts <- biomass_precip %>%
-  group_by(site_code, plot, category) %>%
-  summarise(mass_cat_count = n_distinct(category), .groups = 'drop')
-
-View(mass_cat_block_counts)
+mass_cat_block_counts <- fg_biomass %>% 
+  count(site_code, plot, year, category) %>% filter(n > 1)
+nrow(mass_cat_block_counts)
 
 ## 0-fill the dataset 
 ## Add rows for FGs that were observed at a site but absent from some plot-years
@@ -312,8 +282,37 @@ cover6 <- cover6 %>%
 cover6 <- cover6 %>%
   filter(functional_group %in% fg_list)
 
+## Check if same site-year combos as for biomass
+biomass_site_years <- biomass_precip %>% distinct(site_code, year)
+
+cover6 <- cover6 %>%
+  semi_join(biomass_site_years, by = c("site_code", "year"))
+
+# re-check 6-year/both-trt requirement on this reduced set
+site_year_counts_cover <- cover6 %>%
+  group_by(site_code, trt) %>%
+  summarise(year_count = n_distinct(year), .groups = "drop")
+
+sites_ok_cover <- site_year_counts_cover %>%
+  filter(year_count >= 6) %>%
+  group_by(site_code) %>%
+  filter(n_distinct(trt) == 2)
+
+unique(sites_ok_cover$site_code)
+
+cover6 <- cover6 %>% filter(site_code %in% sites_ok_cover$site_code)
+
+setdiff(unique(biomass_precip$site_code), unique(cover6$site_code))
+
+site_year_counts_cover %>%
+  anti_join(sites_ok_cover, by = "site_code") %>%
+  filter(site_code %in% biomass_precip$site_code)
+
+
 ## 0-fill the dataset 
 ## Add rows for FGs that were observed at a site but absent from some plot-years
+unique(cover6$functional_group)
+
 plot_years <- cover6 %>%
   distinct(site_code, site_name, block, plot, trt, year, year_trt)
 
@@ -357,7 +356,7 @@ dup_traits <- cover_trait_cols %>% count(site_code, Taxon) %>% filter(n > 1)
 nrow(dup_traits)
 
 cover_complete <- cover_complete %>%
-  left_join(cover_trait_cols, by = c("site_code", "Taxon"), relationship = "many-to-many")
+  left_join(cover_trait_cols, by = c("site_code", "Taxon"))
 
 ## Join precip data to 0-filled cover data
 cover_precip <- inner_join(cover_complete, precip, by = c("site_code", "year"))
@@ -569,7 +568,6 @@ fg_model_list <- slopes_lrr_fg_biomass %>%
   map(~ lm(ppt_slope ~ npk_lrr, data = .x))
 
 map(fg_model_list, summary)
-
 
 
 ##### SPECIES COVER ANALYSIS #####
