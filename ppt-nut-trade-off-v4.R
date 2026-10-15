@@ -2,6 +2,8 @@
 library(tidyverse)
 library(lme4)
 library(lmerTest)
+library(purrr)
+library(broom)
 
 ## LOAD AND FILTER BIOMASS DATA
 biomass <- read.csv("/Users/ingridslette/Desktop/NutNet/full-biomass-2026-06-04.csv",
@@ -94,6 +96,8 @@ site_plot_counts <- biomass_precip %>%
   group_by(site_code, block, trt) %>%
   summarise(plot_count = n_distinct(plot), .groups = 'drop')
 
+View(site_plot_counts)
+
 ## Calculate average total biomass per block
 total_biomass_precip_block <- total_biomass_precip %>%
   group_by(site_code, site_name, year, year_trt, trt, block,
@@ -114,17 +118,14 @@ View(site_block_counts)
 pc      <- 0.01
 fg_list <- c("GRAMINOID", "FORB", "WOODY", "LEGUME")
 
-# Random-effect structures, tried in order until one gives a non-singular fit.
-rand_ladder <- c(
-  year_block   = "(1 | year) + (1 | block)",
-  year_only = "(1 | year)"
-)
+# Random-effect structure used for every model.
+rand_form <- "(1 | year) + (1 | block)"
 
 # Fit one site (or site x FG) model and return the coefficient of interest.
 #   fixed = fixed-effect predictor ("trt" or "precip_z")
 #   term  = coefficient name to extract ("trtNPK" or "precip_z")
-# If every structure in the ladder is singular, the full model is used and
-# `singular` is flagged TRUE. `model` records which structure was used.
+# `singular` is TRUE when the fit is on the boundary (e.g., a variance
+# component estimated at zero); the estimate is still returned.
 fit_site_lmm <- function(data, fixed, term, response = "log_mass") {
   data <- data[!is.na(data[[response]]) & !is.na(data[[fixed]]), ]
   data$year  <- factor(data$year)
@@ -134,24 +135,15 @@ fit_site_lmm <- function(data, fixed, term, response = "log_mass") {
     estimate = NA_real_, se = NA_real_, df = NA_real_,
     ci_low = NA_real_, ci_high = NA_real_, p_value = NA_real_,
     n_obs = nrow(data), n_years = n_distinct(data$year),
-    singular = NA, model = NA_character_
+    singular = NA
   )
   
-  chosen <- NULL; chosen_nm <- NA_character_
-  first_fit <- NULL; first_nm <- NA_character_
+  f <- as.formula(paste(response, "~", fixed, "+", rand_form))
+  m <- tryCatch(suppressMessages(lmer(f, data = data)),
+                error = function(e) NULL)
+  if (is.null(m)) return(out_na)
   
-  for (nm in names(rand_ladder)) {
-    f <- as.formula(paste(response, "~", fixed, "+", rand_ladder[[nm]]))
-    m <- tryCatch(suppressMessages(lmer(f, data = data)),
-                  error = function(e) NULL)
-    if (is.null(m)) next
-    if (is.null(first_fit)) { first_fit <- m; first_nm <- nm }
-    if (!isSingular(m)) { chosen <- m; chosen_nm <- nm; break }
-  }
-  if (is.null(chosen)) { chosen <- first_fit; chosen_nm <- first_nm }
-  if (is.null(chosen)) return(out_na)
-  
-  cf <- summary(chosen)$coefficients
+  cf <- summary(m)$coefficients
   if (!term %in% rownames(cf)) return(out_na)
   
   est  <- cf[term, "Estimate"]
@@ -164,9 +156,10 @@ fit_site_lmm <- function(data, fixed, term, response = "log_mass") {
     ci_low = est - crit * se, ci_high = est + crit * se,
     p_value = cf[term, "Pr(>|t|)"],
     n_obs = nrow(data), n_years = n_distinct(data$year),
-    singular = isSingular(chosen), model = chosen_nm
+    singular = isSingular(m)
   )
 }
+
 
 # Classify an estimate as positive, negative, or none, based on its CI
 classify_slope <- function(ci_low, ci_high) {
@@ -198,14 +191,11 @@ lrr_total_biomass <- total_biomass_precip_block %>%
   rename_with(~ paste0("lrr_", .x), -site_code) %>%
   rename(lrr_mass = lrr_estimate, lrr_p = lrr_p_value)
 
-# Diagnostics: which random-effect structures were used, any failures?
-table(slopes_total_biomass$control_model, useNA = "ifany")
-table(lrr_total_biomass$lrr_model, useNA = "ifany")
+# Diagnostics: check for singularity 
 table(slopes_total_biomass$control_singular, useNA = "ifany")
 table(lrr_total_biomass$lrr_singular, useNA = "ifany")
 
-
-## Join, classify and tally, graph
+## Join, classify and tally
 slopes_lrr_total_biomass <- left_join(slopes_total_biomass, lrr_total_biomass,
                                       by = "site_code") %>%
   mutate(
@@ -227,6 +217,7 @@ quadrant_counts_total_biomass <- slopes_lrr_total_biomass %>%
 
 print(quadrant_counts_total_biomass)
 
+## Graphing
 graph_total_biomass <- ggplot(slopes_lrr_total_biomass,
                              aes(x = lrr_mass, y = control_slope, color = quadrant)) +
   geom_point(size = 2.5, alpha = 0.85) +
@@ -310,8 +301,6 @@ fg_keep <- fg_biomass_complete_precip %>%
   summarise(n_years_present = n(), .groups = "drop") %>%
   filter(n_years_present >= 4)
 
-str(fg_biomass_complete_precip)
-
 fg_biomass_complete_precip <- fg_biomass_complete_precip %>%
   semi_join(fg_keep, by = c("site_code", "category")) 
 
@@ -354,14 +343,11 @@ lrr_fg_biomass <- fg_biomass_precip_block %>%
   rename_with(~ paste0("lrr_", .x), -c(site_code, category)) %>%
   rename(lrr_mass = lrr_estimate, lrr_p = lrr_p_value, )
 
-# Diagnostics
-table(slopes_fg_biomass$control_model, useNA = "ifany")
-table(lrr_fg_biomass$lrr_model, useNA = "ifany")
+# Check for singularity
 table(slopes_fg_biomass$control_singular, useNA = "ifany")
 table(lrr_fg_biomass$lrr_singular, useNA = "ifany")
 
-
-## join, classify and tally, graph
+## Join, classify and tally
 slopes_lrr_fg_biomass <- left_join(slopes_fg_biomass, lrr_fg_biomass,
                                    by = c("site_code", "category")) %>%
   mutate(
@@ -386,6 +372,7 @@ quadrant_counts_fg_biomass <- slopes_lrr_fg_biomass %>%
 
 print(quadrant_counts_fg_biomass)
 
+# Graph
 graph_fg_biomass <- ggplot(slopes_lrr_fg_biomass,
                           aes(x = lrr_mass, y = control_slope, color = quadrant)) +
   geom_point(size = 2, alpha = 0.6) +
@@ -419,7 +406,6 @@ model_fg_biomass_x <- lmer(control_slope ~ lrr_mass * category + (1 | site_code)
                            data = slopes_lrr_fg_biomass)
 summary(model_fg_biomass_x)
 
-
 mixed_model_fg_biomass <- lmer(log_mass ~ trt * precip_z + category +
                                  (1 | site_code/block) + (1 | site_code:year),
                                data = fg_biomass_precip_block)
@@ -429,6 +415,25 @@ mixed_model_fg_biomass_x <- lmer(log_mass ~ trt * precip_z * category +
                                    (1 | site_code/block) + (1 | site_code:year),
                                  data = fg_biomass_precip_block)
 summary(mixed_model_fg_biomass_x)
+
+
+# Fit lm(control_slope ~ lrr_mass) separately for each functional group
+# fg_models <- slopes_lrr_fg_biomass %>%
+#   group_by(category) %>%
+#   nest() %>%
+#   mutate(
+#     model   = map(data, ~ lm(control_slope ~ lrr_mass, data = .x)),
+#     n_sites = map_int(data, nrow),
+#     tidy    = map(model, ~ tidy(.x, conf.int = TRUE)),
+#     glance  = map(model, glance)
+#   )
+
+
+fg_model_list <- slopes_lrr_fg_biomass %>%
+  split(.$category) %>%
+  map(~ lm(control_slope ~ lrr_mass, data = .x))
+
+map(fg_model_list, summary)
 
 
 ## LOAD AND FILTER COVER DATA
