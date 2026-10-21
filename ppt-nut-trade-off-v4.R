@@ -675,6 +675,30 @@ response_counts_species_cover <- slopes_lrr_species_cover %>%
 
 print(response_counts_species_cover)
 
+quadrant_counts_species_cover <- slopes_lrr_species_cover %>%
+  filter(!is.na(precip_response), !is.na(npk_response)) %>%
+  count(quadrant, name = "n_site_species")
+
+print(quadrant_counts_species_cover)
+
+response_counts_fg_cover <- slopes_lrr_species_cover %>%
+  filter(!is.na(precip_response), !is.na(npk_response)) %>%
+  count(functional_group, npk_response, precip_response, name = "n_site_species") %>%
+  complete(functional_group,
+           npk_response    = c("positive", "none", "negative"),
+           precip_response = c("positive", "none", "negative"),
+           fill = list(n_site_species = 0)) %>%
+  mutate(quadrant = paste(npk_response, precip_response, sep = " / "))
+
+print(response_counts_fg_cover, n=36)
+
+quadrant_counts_fg_cover <- slopes_lrr_species_cover %>%
+  filter(!is.na(precip_response), !is.na(npk_response)) %>%
+  count(functional_group, quadrant, name = "n_site_species")
+
+print(quadrant_counts_fg_cover)
+
+
 ## Graph
 plot_species_cover <- ggplot(slopes_lrr_species_cover,
                              aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
@@ -716,19 +740,19 @@ bargraph_species_cover <- ggplot(response_counts_species_cover,
 bargraph_species_cover
 
 
-bargraph_quadrant_species_cover <- ggplot(response_counts_species_cover,
+bargraph_quadrant_species_cover <- ggplot(quadrant_counts_species_cover,
                                        aes(x = quadrant, y = n_site_species, fill = quadrant)) +
   geom_col() +
   scale_quad_fill +
   guides(fill = "none") +
-  labs(x = "NPK Response / \nPrecip Resoponse", y = "Number of site-species combinations") +
+  labs(x = "NPK Response / Precip Resoponse", y = "Number of site-species combinations") +
   theme_bw(base_size = 14) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 bargraph_quadrant_species_cover
 
 
-bargraph_species_cover_fg <- ggplot(response_counts_species_cover,
+bargraph_fg_cover <- ggplot(response_counts_fg_cover,
                                  aes(x = npk_response, y = n_site_species, fill = quadrant)) +
   geom_col() +
   scale_quad_fill +
@@ -737,23 +761,20 @@ bargraph_species_cover_fg <- ggplot(response_counts_species_cover,
        fill = "NPK Response / \nPrecip Resoponse") +
   theme_bw(base_size = 14)
 
-bargraph_species_cover_fg
+bargraph_fg_cover
 
 
-bargraph_quadrant_species_cover <- ggplot(response_counts_species_cover,
+bargraph_quadrant_fg_cover <- ggplot(response_counts_fg_cover,
                                           aes(x = quadrant, y = n_site_species, fill = quadrant)) +
   geom_col() +
   scale_quad_fill +
   guides(fill = "none") +
-  labs(x = "NPK Response / \nPrecip Resoponse", y = "Number of site-species combinations") +
+  facet_wrap(~ functional_group) +
+  labs(x = "NPK Response / Precip Resoponse", y = "Number of site-species combinations") +
   theme_bw(base_size = 14) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-bargraph_quadrant_species_cover
-
-
-
-
+bargraph_quadrant_fg_cover
 
 
 ## Analyze
