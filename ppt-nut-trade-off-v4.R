@@ -443,57 +443,6 @@ quadrant_counts_total_biomass <- slopes_lrr_total_biomass %>%
 
 print(quadrant_counts_total_biomass)
 
-## Graph
-
-quad_levels <- c(
-  "positive / positive", "positive / none", "positive / negative",
-  "none / positive",     "none / none",     "none / negative",
-  "negative / positive", "negative / none", "negative / negative"
-)
-
-quad_colors <- setNames(
-  c("#D55E00","#0072B2","#F0E442","#E69F00","#999999","#CC79A7","#6A3D9A","#009E73","#56B4E9"),
-  quad_levels
-)
-
-scale_quad_color <- scale_color_manual(values = quad_colors, breaks = quad_levels)
-scale_quad_fill  <- scale_fill_manual(values = quad_colors,  breaks = quad_levels)
-
-graph_total_biomass <- ggplot(slopes_lrr_total_biomass,
-                             aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
-  geom_point(size = 2.5, alpha = 0.85) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_hline(yintercept = 0, linetype = "dashed") +
-  scale_quad_color +
-  labs(x = "Response to NPK",
-       y = "Response to precipitation",
-       color = "NPK Response / \nPrecip Resoponse") +
-  theme_bw(base_size = 14)
-
-graph_total_biomass
-
-bargraph_total_biomass <- ggplot(response_counts_total_biomass,
-                            aes(x = npk_response, y = n_sites, fill = quadrant)) +
-  geom_col() +
-  scale_quad_fill +
-#  guides(fill = "none") +
-  labs(x = "NPK response", y = "Number of sites",
-       fill = "NPK Response / \nPrecip Resoponse") +
-  theme_bw(base_size = 14)
-
-bargraph_total_biomass
-
-bargraph_quadrant_total_biomass <- ggplot(quadrant_counts_total_biomass,
-                                          aes(x = quadrant, y = n_sites, fill = quadrant)) +
-  geom_col() +
-  scale_quad_fill +
-  guides(fill = "none") +
-  labs(x = "NPK Response / \nPrecip Resoponse", y = "Number of sites") +
-  theme_bw(base_size = 14) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-bargraph_quadrant_total_biomass
-
 ## Analyze
 model_total_biomass <- lm(ppt_slope ~ npk_lrr, data = slopes_lrr_total_biomass)
 summary(model_total_biomass)
@@ -552,46 +501,6 @@ quadrant_counts_fg_biomass <- slopes_lrr_fg_biomass %>%
   count(category, quadrant, name = "n_sites")
 
 print(quadrant_counts_fg_biomass)
-
-
-## Graph
-
-graph_fg_biomass <- ggplot(slopes_lrr_fg_biomass,
-                          aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
-  geom_point(size = 2, alpha = 0.7) +
-  scale_quad_color +
-  facet_wrap(~ category) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(x = "Response to NPK",
-       y = "Response to precipitation",
-       color = "NPK Response / \nPrecip Resoponse") +
-  theme_bw(base_size = 14)
-
-graph_fg_biomass
-
-bargraph_fg_biomass <- ggplot(response_counts_fg_biomass,
-                         aes(x = npk_response, y = n_sites, fill = quadrant)) +
-  geom_col() +
-  scale_quad_fill +
-  facet_wrap(~ category) +
-  labs(x = "NPK response", y = "Number of site-FG combinations",
-       fill = "NPK Response / \nPrecip Resoponse") +
-  theme_bw(base_size = 14)
-
-bargraph_fg_biomass
-
-bargraph_quadrant_fg_biomass <- ggplot(quadrant_counts_fg_biomass,
-                                       aes(x = quadrant, y = n_sites, fill = quadrant)) +
-  geom_col() +
-  scale_quad_fill +
-  guides(fill = "none") +
-  facet_wrap(~ category) +
-  labs(x = "NPK Response / Precip Resoponse", y = "Number of sites") +
-  theme_bw(base_size = 14) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-bargraph_quadrant_fg_biomass
 
 ## Analyze
 model_fg_biomass <- lmer(ppt_slope ~ npk_lrr + category + (1 | site_code),
@@ -686,7 +595,113 @@ quadrant_counts_fg_cover <- slopes_lrr_species_cover %>%
 print(quadrant_counts_fg_cover)
 
 
-## Graph
+## Analyze
+model_species_cover <- lmer(ppt_slope ~ npk_lrr + (1 | site_code) + (1 | Taxon),
+                            data = slopes_lrr_species_cover)
+summary(model_species_cover)
+
+fg_cover_model_list <- slopes_lrr_species_cover %>%
+  split(.$functional_group) %>%
+  map(~ lm(ppt_slope ~ npk_lrr, data = .x))
+
+map(fg_cover_model_list, summary)
+
+
+##### Graphing #####
+
+quad_levels <- c(
+  "positive / positive", "positive / none", "positive / negative",
+  "none / positive",     "none / none",     "none / negative",
+  "negative / positive", "negative / none", "negative / negative"
+)
+
+quad_colors <- setNames(
+  c("#D55E00","#0072B2","#F0E442","#E69F00","#999999","#CC79A7","#6A3D9A","#009E73","#56B4E9"),
+  quad_levels
+)
+
+scale_quad_color <- scale_color_manual(values = quad_colors, breaks = quad_levels)
+scale_quad_fill  <- scale_fill_manual(values = quad_colors,  breaks = quad_levels)
+
+## Total Biomass Graphs
+
+graph_total_biomass <- ggplot(slopes_lrr_total_biomass,
+                              aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
+  geom_point(size = 2.5, alpha = 0.85) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  scale_quad_color +
+  labs(x = "Response to NPK",
+       y = "Response to precipitation",
+       color = "NPK Response / \nPrecip Resoponse") +
+  theme_bw(base_size = 14)
+
+graph_total_biomass
+
+bargraph_total_biomass <- ggplot(response_counts_total_biomass,
+                                 aes(x = npk_response, y = n_sites, fill = quadrant)) +
+  geom_col() +
+  scale_quad_fill +
+  labs(x = "NPK response", y = "Number of sites",
+       fill = "NPK Response / \nPrecip Resoponse") +
+  theme_bw(base_size = 14)
+
+bargraph_total_biomass
+
+bargraph_quadrant_total_biomass <- ggplot(quadrant_counts_total_biomass,
+                                          aes(x = quadrant, y = n_sites, fill = quadrant)) +
+  geom_col() +
+  scale_quad_fill +
+  guides(fill = "none") +
+  labs(x = "NPK Response / \nPrecip Resoponse", y = "Number of sites") +
+  theme_bw(base_size = 14) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+bargraph_quadrant_total_biomass
+
+
+## Biomass FG Graphs
+
+graph_fg_biomass <- ggplot(slopes_lrr_fg_biomass,
+                           aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_quad_color +
+  facet_wrap(~ category) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Response to NPK",
+       y = "Response to precipitation",
+       color = "NPK Response / \nPrecip Resoponse") +
+  theme_bw(base_size = 14)
+
+graph_fg_biomass
+
+bargraph_fg_biomass <- ggplot(response_counts_fg_biomass,
+                              aes(x = npk_response, y = n_sites, fill = quadrant)) +
+  geom_col() +
+  scale_quad_fill +
+  facet_wrap(~ category) +
+  labs(x = "NPK response", y = "Number of site-FG combinations",
+       fill = "NPK Response / \nPrecip Resoponse") +
+  theme_bw(base_size = 14)
+
+bargraph_fg_biomass
+
+bargraph_quadrant_fg_biomass <- ggplot(quadrant_counts_fg_biomass,
+                                       aes(x = quadrant, y = n_sites, fill = quadrant)) +
+  geom_col() +
+  scale_quad_fill +
+  guides(fill = "none") +
+  facet_wrap(~ category) +
+  labs(x = "NPK Response / Precip Resoponse", y = "Number of sites") +
+  theme_bw(base_size = 14) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+bargraph_quadrant_fg_biomass
+
+
+## Species Cover Graphs
+
 plot_species_cover <- ggplot(slopes_lrr_species_cover,
                              aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
   geom_point(size = 1.5, alpha = 0.7) +
@@ -700,22 +715,6 @@ plot_species_cover <- ggplot(slopes_lrr_species_cover,
 
 plot_species_cover
 
-
-plot_species_cover_fg <- ggplot(slopes_lrr_species_cover,
-                             aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
-  geom_point(size = 1.5, alpha = 0.7) +
-  scale_quad_color +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(x = "Response to NPK",
-       y = "Response to precipitation",
-       color = "NPK Response / \nPrecip Resoponse") +
-  facet_wrap(~ functional_group) +
-  theme_bw(base_size = 14)
-
-plot_species_cover_fg
-
-
 bargraph_species_cover <- ggplot(response_counts_species_cover,
                               aes(x = npk_response, y = n_site_species, fill = quadrant)) +
   geom_col() +
@@ -725,7 +724,6 @@ bargraph_species_cover <- ggplot(response_counts_species_cover,
   theme_bw(base_size = 14)
 
 bargraph_species_cover
-
 
 bargraph_quadrant_species_cover <- ggplot(quadrant_counts_species_cover,
                                        aes(x = quadrant, y = n_site_species, fill = quadrant)) +
@@ -739,6 +737,22 @@ bargraph_quadrant_species_cover <- ggplot(quadrant_counts_species_cover,
 bargraph_quadrant_species_cover
 
 
+## FG Cover Graphs
+
+plot_species_cover_fg <- ggplot(slopes_lrr_species_cover,
+                                aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
+  geom_point(size = 1.5, alpha = 0.7) +
+  scale_quad_color +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Response to NPK",
+       y = "Response to precipitation",
+       color = "NPK Response / \nPrecip Resoponse") +
+  facet_wrap(~ functional_group) +
+  theme_bw(base_size = 14)
+
+plot_species_cover_fg
+
 bargraph_fg_cover <- ggplot(response_counts_fg_cover,
                                  aes(x = npk_response, y = n_site_species, fill = quadrant)) +
   geom_col() +
@@ -749,7 +763,6 @@ bargraph_fg_cover <- ggplot(response_counts_fg_cover,
   theme_bw(base_size = 14)
 
 bargraph_fg_cover
-
 
 bargraph_quadrant_fg_cover <- ggplot(response_counts_fg_cover,
                                           aes(x = quadrant, y = n_site_species, fill = quadrant)) +
@@ -764,17 +777,5 @@ bargraph_quadrant_fg_cover <- ggplot(response_counts_fg_cover,
 bargraph_quadrant_fg_cover
 
 
-## Analyze
-model_species_cover <- lmer(ppt_slope ~ npk_lrr + (1 | site_code) + (1 | Taxon),
-                            data = slopes_lrr_species_cover)
-summary(model_species_cover)
-
-fg_cover_model_list <- slopes_lrr_species_cover %>%
-  split(.$functional_group) %>%
-  map(~ lm(ppt_slope ~ npk_lrr, data = .x))
-
-map(fg_cover_model_list, summary)
-
-
-
+## Site Graphs
 
