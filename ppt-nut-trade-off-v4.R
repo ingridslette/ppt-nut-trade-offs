@@ -452,9 +452,7 @@ quad_levels <- c(
 )
 
 quad_colors <- setNames(
-  c("#D55E00", "#E69F00", "#F0E442",   # NPK positive: orange -> yellow
-    "#009E73", "#999999", "#56B4E9",   # NPK none: green, grey, light blue
-    "#CC79A7", "#0072B2", "#6A3D9A"),  # NPK negative: pink, blue, purple
+  c("#D55E00","#0072B2","#F0E442","#E69F00","#999999","#CC79A7","#6A3D9A","#009E73","#56B4E9"),
   quad_levels
 )
 
@@ -584,27 +582,16 @@ bargraph_fg_biomass <- ggplot(response_counts_fg_biomass,
 bargraph_fg_biomass
 
 bargraph_quadrant_fg_biomass <- ggplot(quadrant_counts_fg_biomass,
-                                          aes(x = quadrant, y = n_sites, fill = quadrant)) +
-  geom_col() +
-  scale_quad_fill +
-  guides(fill = "none") +
-  labs(x = "NPK Response / \nPrecip Resoponse", y = "Number of sites") +
-  theme_bw(base_size = 14) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-bargraph_quadrant_fg_biomass
-
-bargraph_quadrant_fg_biomass_facet <- ggplot(quadrant_counts_fg_biomass,
                                        aes(x = quadrant, y = n_sites, fill = quadrant)) +
   geom_col() +
   scale_quad_fill +
   guides(fill = "none") +
   facet_wrap(~ category) +
-  labs(x = "NPK Response / \nPrecip Resoponse", y = "Number of sites") +
+  labs(x = "NPK Response / Precip Resoponse", y = "Number of sites") +
   theme_bw(base_size = 14) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-bargraph_quadrant_fg_biomass_facet
+bargraph_quadrant_fg_biomass
 
 ## Analyze
 model_fg_biomass <- lmer(ppt_slope ~ npk_lrr + category + (1 | site_code),
