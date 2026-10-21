@@ -189,7 +189,7 @@ site_plot_counts <- biomass_precip %>%
   group_by(site_code, block, trt) %>%
   summarise(plot_count = n_distinct(plot), .groups = 'drop')
 
-View(site_plot_counts)
+print(site_plot_counts, n=248)
 
 ## Calculate average total biomass per block
 total_biomass_precip_block <- total_biomass_precip %>%
@@ -203,7 +203,7 @@ site_block_counts <- total_biomass_precip_block %>%
   group_by(site_code) %>%
   summarise(block_count = n_distinct(block), .groups = 'drop')
 
-View(site_block_counts)
+print(site_block_counts, n=37)
 
 
 #### SET UP FG BIOMASS DATASET FOR ANALYSIS ####
@@ -255,7 +255,7 @@ site_plot_counts_fg_mass <- fg_biomass_complete_precip %>%
   group_by(site_code, block, trt) %>%
   summarise(plot_count = n_distinct(plot), .groups = 'drop')
 
-View(site_plot_counts_fg_mass)
+print(site_plot_counts_fg_mass, n=234)
 
 ## Calculate average biomass per block per category
 fg_biomass_precip_block <- fg_biomass_complete_precip %>%
@@ -269,7 +269,7 @@ site_block_counts_fg_mass <- fg_biomass_precip_block %>%
   group_by(site_code) %>%
   summarise(block_count = n_distinct(block), .groups = 'drop')
 
-View(site_block_counts_fg_mass)
+print(site_block_counts_fg_mass, n=35)
 
 
 #### SET UP SPECIES COVER DATASET FOR ANALYSIS ####
@@ -337,7 +337,7 @@ cover_trait_cols <- cover6 %>%
 ## Check for inconsistent trait rows per site-taxon
 dup_traits <- cover_trait_cols %>% count(site_code, Taxon) %>% filter(n > 1)
 nrow(dup_traits)
-View(dup_traits)
+print(dup_traits)
 
 # Collapse to one row per site-taxon: first non-NA value in each trait column
 first_non_na <- function(x) {
@@ -378,7 +378,7 @@ site_plot_counts_cover <- cover_precip_keep %>%
   group_by(site_code, block, trt) %>%
   summarise(plot_count = n_distinct(plot), .groups = 'drop')
 
-View(site_plot_counts_cover)
+print(site_plot_counts_cover, n=242)
 
 ## Calculate average cover per block per species
 cover_precip_block <- cover_precip_keep %>%
@@ -394,7 +394,7 @@ site_block_counts_cover <- cover_precip_block %>%
   group_by(site_code) %>%
   summarise(block_count = n_distinct(block), .groups = 'drop')
 
-View(site_block_counts_cover)
+print(site_block_counts_cover, n=36)
 
 
 ##### TOTAL BIOMASS ANALYSIS #####
@@ -522,7 +522,7 @@ response_counts_fg_biomass <- slopes_lrr_fg_biomass %>%
            precip_response = c("positive", "none", "negative"),
            fill = list(n_sites = 0))
 
-print(response_counts_fg_biomass)
+print(response_counts_fg_biomass, n=36)
 
 quadrant_counts_fg_biomass <- slopes_lrr_fg_biomass %>%
   filter(!is.na(precip_response), !is.na(npk_response)) %>%
@@ -584,6 +584,8 @@ slopes_species_cover <- cover_precip_block %>%
   ungroup() %>%
   rename_with(~ paste0("ppt_", .x), -c(site_code, Taxon)) %>%
   rename(ppt_slope = ppt_estimate, ppt_p = ppt_p_value)
+
+warnings()
 
 ## NPK effect (log response ratio) per site x species
 lrr_species_cover <- cover_precip_block %>%
