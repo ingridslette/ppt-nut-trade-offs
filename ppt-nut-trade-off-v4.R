@@ -779,3 +779,16 @@ bargraph_quadrant_fg_cover
 
 ## Site Graphs
 
+plot_species_cover_sites <- ggplot(slopes_lrr_species_cover,
+                             aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
+  geom_point(size = 1.5, alpha = 0.7) +
+  scale_quad_color +
+  facet_wrap(~ site_code) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Response to NPK",
+       y = "Response to precipitation",
+       color = "NPK Response / \nPrecip Resoponse") +
+  theme_bw(base_size = 14)
+
+plot_species_cover_sites
