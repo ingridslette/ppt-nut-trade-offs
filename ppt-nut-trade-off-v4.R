@@ -647,7 +647,7 @@ scale_quad_fill  <- scale_fill_manual(values = quad_colors,  breaks = quad_level
 
 graph_total_biomass <- ggplot(slopes_lrr_total_biomass,
                               aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
-  geom_point(size = 2.5, alpha = 0.85) +
+  geom_point(size = 2, alpha = 0.8) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed") +
   scale_quad_color +
@@ -684,7 +684,7 @@ bargraph_quadrant_total_biomass
 
 graph_fg_biomass <- ggplot(slopes_lrr_fg_biomass,
                            aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
-  geom_point(size = 2, alpha = 0.7) +
+  geom_point(size = 2, alpha = 0.8) +
   scale_quad_color +
   facet_wrap(~ category) +
   geom_vline(xintercept = 0, linetype = "dashed") +
@@ -724,7 +724,7 @@ bargraph_quadrant_fg_biomass
 
 plot_species_cover <- ggplot(slopes_lrr_species_cover,
                              aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
-  geom_point(size = 1.5, alpha = 0.7) +
+  geom_point(size = 2, alpha = 0.7) +
   scale_quad_color +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed") +
@@ -761,7 +761,7 @@ bargraph_quadrant_species_cover
 
 plot_species_cover_fg <- ggplot(slopes_lrr_species_cover,
                                 aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
-  geom_point(size = 1.5, alpha = 0.7) +
+  geom_point(size = 2, alpha = 0.7) +
   scale_quad_color +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed") +
@@ -801,7 +801,7 @@ bargraph_quadrant_fg_cover
 
 plot_species_cover_sites <- ggplot(slopes_lrr_species_cover,
                              aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
-  geom_point(size = 1.5, alpha = 0.7) +
+  geom_point(size = 2, alpha = 0.8) +
   scale_quad_color +
   facet_wrap(~ site_code) +
   geom_vline(xintercept = 0, linetype = "dashed") +
@@ -820,16 +820,16 @@ sp_site_counts <- slopes_lrr_species_cover %>%
   group_by(Taxon) %>% 
   summarise(site_count = n_distinct(site_code), .groups = 'drop')
 
-sp_site_5 <- sp_site_counts %>%
-  filter(site_count >= 5)
+sp_site_6 <- sp_site_counts %>%
+  filter(site_count >= 6)
 
-slopes_lrr_species_cover5 <- slopes_lrr_species_cover %>%
-  filter(Taxon %in% sp_site_5$Taxon)
+slopes_lrr_species_cover6 <- slopes_lrr_species_cover %>%
+  filter(Taxon %in% sp_site_6$Taxon)
 
   
-plot_species_cover_taxon <- ggplot(slopes_lrr_species_cover5,
+plot_species_cover_taxon <- ggplot(slopes_lrr_species_cover6,
                                    aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
-  geom_point(size = 1.5, alpha = 0.7) +
+  geom_point(size = 2, alpha = 0.8) +
   scale_quad_color +
   facet_wrap(~ Taxon) +
   geom_vline(xintercept = 0, linetype = "dashed") +
@@ -840,4 +840,88 @@ plot_species_cover_taxon <- ggplot(slopes_lrr_species_cover5,
   theme_bw(base_size = 14)
 
 plot_species_cover_taxon
+
+
+## Other species trait graphs
+
+slopes_lrr_species_cover <- slopes_lrr_species_cover %>%
+  inner_join(cover_trait_cols, by=c("site_code", "Taxon", "functional_group"))
+
+plot_species_cover_lifespan <- ggplot(
+  data = subset(slopes_lrr_species_cover, local_lifespan %in% c("ANNUAL", "PERENNIAL")),
+                                aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_quad_color +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Response to NPK",
+       y = "Response to precipitation",
+       color = "NPK Response / \nPrecip Resoponse") +
+  facet_wrap(~ local_lifespan) +
+  theme_bw(base_size = 14)
+
+plot_species_cover_lifespan
+
+
+plot_species_cover_provenance <- ggplot(
+  data = subset(slopes_lrr_species_cover, local_provenance %in% c("INT", "NAT")),
+  aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_quad_color +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Response to NPK",
+       y = "Response to precipitation",
+       color = "NPK Response / \nPrecip Resoponse") +
+  facet_wrap(~ local_provenance) +
+  theme_bw(base_size = 14)
+
+plot_species_cover_provenance
+
+plot_species_cover_ps <- ggplot(
+  data = subset(slopes_lrr_species_cover, ps_path %in% c("C3", "C4")),
+  aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_quad_color +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Response to NPK",
+       y = "Response to precipitation",
+       color = "NPK Response / \nPrecip Resoponse") +
+  facet_wrap(~ ps_path) +
+  theme_bw(base_size = 14)
+
+plot_species_cover_ps
+
+
+## Family Graph
+
+fam_site_counts <- slopes_lrr_species_cover %>%
+  group_by(Family) %>% 
+  summarise(site_count = n_distinct(site_code), .groups = 'drop')
+
+fam_site_6 <- fam_site_counts %>%
+  filter(site_count >= 6)
+
+slopes_lrr_species_cover_fam6 <- slopes_lrr_species_cover %>%
+  filter(Family %in% fam_site_6$Family)
+
+
+plot_species_cover_family <- ggplot(
+  data = slopes_lrr_species_cover_fam6,
+  aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_quad_color +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Response to NPK",
+       y = "Response to precipitation",
+       color = "NPK Response / \nPrecip Resoponse") +
+  facet_wrap(~ Family) +
+  theme_bw(base_size = 14)
+
+plot_species_cover_family
+
+
+
 
