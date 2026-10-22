@@ -2,7 +2,8 @@
 library(tidyverse)
 library(lme4)
 library(lmerTest)
-
+library(purrr)
+library(broom)
 
 
 ##### DEFINITIONS AND FUNCTIONS #####
@@ -592,7 +593,7 @@ quadrant_counts_fg_cover <- slopes_lrr_species_cover %>%
   filter(!is.na(precip_response), !is.na(npk_response)) %>%
   count(functional_group, quadrant, name = "n_site_species")
 
-print(quadrant_counts_fg_cover)
+print(quadrant_counts_fg_cover, n=25)
 
 
 ## Analyze
@@ -605,6 +606,25 @@ fg_cover_model_list <- slopes_lrr_species_cover %>%
   map(~ lm(ppt_slope ~ npk_lrr, data = .x))
 
 map(fg_cover_model_list, summary)
+
+
+site_cover_model_list <- slopes_lrr_species_cover %>%
+  split(.$site_code) %>%
+  map(~ lm(ppt_slope ~ npk_lrr, data = .x))
+
+map(site_cover_model_list, summary)
+
+site_cover_results <- site_cover_model_list %>%
+  map_dfr(tidy, .id = "site_code")
+
+site_cover_results
+
+site_cover_slopes <- site_cover_results %>%
+  filter(term == "npk_lrr")
+
+View(site_cover_slopes)
+print(site_cover_slopes, n=36)
+
 
 
 ##### Graphing #####
@@ -777,7 +797,7 @@ bargraph_quadrant_fg_cover <- ggplot(response_counts_fg_cover,
 bargraph_quadrant_fg_cover
 
 
-## Site Graphs
+## Site Graph
 
 plot_species_cover_sites <- ggplot(slopes_lrr_species_cover,
                              aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
@@ -792,3 +812,32 @@ plot_species_cover_sites <- ggplot(slopes_lrr_species_cover,
   theme_bw(base_size = 14)
 
 plot_species_cover_sites
+
+
+## Species Graph
+
+sp_site_counts <- slopes_lrr_species_cover %>%
+  group_by(Taxon) %>% 
+  summarise(site_count = n_distinct(site_code), .groups = 'drop')
+
+sp_site_5 <- sp_site_counts %>%
+  filter(site_count >= 5)
+
+slopes_lrr_species_cover5 <- slopes_lrr_species_cover %>%
+  filter(Taxon %in% sp_site_5$Taxon)
+
+  
+plot_species_cover_taxon <- ggplot(slopes_lrr_species_cover5,
+                                   aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
+  geom_point(size = 1.5, alpha = 0.7) +
+  scale_quad_color +
+  facet_wrap(~ Taxon) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Response to NPK",
+       y = "Response to precipitation",
+       color = "NPK Response / \nPrecip Resoponse") +
+  theme_bw(base_size = 14)
+
+plot_species_cover_taxon
+
