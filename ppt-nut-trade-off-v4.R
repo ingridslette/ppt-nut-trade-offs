@@ -400,7 +400,7 @@ print(site_block_counts_cover, n=36)
 
 ##### TOTAL BIOMASS ANALYSIS #####
 
-## Calculate precip effect (precip-biomass slope) per site for control and for NPK
+## Calculate precip effect (precip-biomass slope) per site for control plots and for NPK plots
 slopes_total_biomass_control <- total_biomass_precip_block %>%
   filter(trt == "Control") %>%
   group_by(site_code) %>%
@@ -603,7 +603,7 @@ map(fg_model_list_npk, summary)
 ## How many site x species models will be fit?
 n_distinct(cover_precip_block %>% distinct(site_code, Taxon))
 
-## Precip slope per site x species for control and for npk
+## Precip slope per site x species for Control plots and for NPK plots
 slopes_species_cover_ctrl <- cover_precip_block %>%
   filter(trt == "Control") %>%
   group_by(site_code, Taxon) %>%
@@ -779,6 +779,71 @@ site_cover_slopes_npk <- site_cover_results_npk %>%
 
 View(site_cover_slopes_npk)
 print(site_cover_slopes_ctrl, n=36)
+
+
+### Common Species Analysis ###
+
+sp_site_counts_ctrl <- slopes_lrr_species_cover_ctrl %>%
+  group_by(Taxon) %>% 
+  summarise(site_count = n_distinct(site_code), .groups = 'drop')
+
+sp_site_6_ctrl <- sp_site_counts_ctrl %>%
+  filter(site_count >= 6)
+
+slopes_lrr_species_cover6_ctrl <- slopes_lrr_species_cover_ctrl %>%
+  filter(Taxon %in% sp_site_6_ctrl$Taxon)
+
+cover6_model_list_ctrl <- slopes_lrr_species_cover6_ctrl %>%
+  split(.$Taxon) %>%
+  map(~ lm(ppt_slope ~ npk_lrr, data = .x))
+
+map(cover6_model_list_ctrl, summary)
+
+
+sp_site_counts_npk <- slopes_lrr_species_cover_npk %>%
+  group_by(Taxon) %>% 
+  summarise(site_count = n_distinct(site_code), .groups = 'drop')
+
+sp_site_6_npk <- sp_site_counts_npk %>%
+  filter(site_count >= 6)
+
+slopes_lrr_species_cover6_npk <- slopes_lrr_species_cover_npk %>%
+  filter(Taxon %in% sp_site_6_npk$Taxon)
+
+cover6_model_list_npk <- slopes_lrr_species_cover6_npk %>%
+  split(.$Taxon) %>%
+  map(~ lm(ppt_slope ~ npk_lrr, data = .x))
+
+map(cover6_model_list_npk, summary)
+
+
+### Common Species Traits Analysis ###
+
+slopes_lrr_species_cover <- slopes_lrr_species_cover %>%
+  inner_join(cover_trait_cols, by=c("site_code", "Taxon", "functional_group"))
+
+annual_species_model <- lm(ppt_slope ~ npk_lrr, 
+                           data = subset(slopes_lrr_species_cover, 
+                                         local_lifespan == "ANNUAL"))
+summary(annual_species_model)
+
+perennial_species_model <- lm(ppt_slope ~ npk_lrr, 
+                           data = subset(slopes_lrr_species_cover, 
+                                         local_lifespan == "PERENNIAL"))
+summary(perennial_species_model)
+
+
+int_species_model <- lm(ppt_slope ~ npk_lrr, 
+                           data = subset(slopes_lrr_species_cover, 
+                                         local_lifespan == "ANNUAL"))
+summary(annual_species_model)
+
+perennial_species_model <- lm(ppt_slope ~ npk_lrr, 
+                              data = subset(slopes_lrr_species_cover, 
+                                            local_lifespan == "PERENNIAL"))
+summary(perennial_species_model)
+
+
 
 
 ##### Graphing #####
@@ -1233,19 +1298,8 @@ plot_species_cover_sites_npk <- ggplot(slopes_lrr_species_cover_npk,
 plot_species_cover_sites_npk
 
 
-## Species Graph
+## Common Species Graphs
 
-sp_site_counts_ctrl <- slopes_lrr_species_cover_ctrl %>%
-  group_by(Taxon) %>% 
-  summarise(site_count = n_distinct(site_code), .groups = 'drop')
-
-sp_site_6_ctrl <- sp_site_counts_ctrl %>%
-  filter(site_count >= 6)
-
-slopes_lrr_species_cover6_ctrl <- slopes_lrr_species_cover_ctrl %>%
-  filter(Taxon %in% sp_site_6_ctrl$Taxon)
-
-  
 plot_species_cover_taxon_ctrl <- ggplot(slopes_lrr_species_cover6_ctrl,
                                    aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
   geom_point(size = 2, alpha = 0.8) +
@@ -1259,18 +1313,6 @@ plot_species_cover_taxon_ctrl <- ggplot(slopes_lrr_species_cover6_ctrl,
   theme_bw(base_size = 14)
 
 plot_species_cover_taxon_ctrl
-
-
-sp_site_counts_npk <- slopes_lrr_species_cover_npk %>%
-  group_by(Taxon) %>% 
-  summarise(site_count = n_distinct(site_code), .groups = 'drop')
-
-sp_site_6_npk <- sp_site_counts_npk %>%
-  filter(site_count >= 6)
-
-slopes_lrr_species_cover6_npk <- slopes_lrr_species_cover_npk %>%
-  filter(Taxon %in% sp_site_6_npk$Taxon)
-
 
 plot_species_cover_taxon_npk <- ggplot(slopes_lrr_species_cover6_npk,
                                         aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
@@ -1306,7 +1348,6 @@ plot_species_cover_lifespan <- ggplot(
   theme_bw(base_size = 14)
 
 plot_species_cover_lifespan
-
 
 plot_species_cover_provenance <- ggplot(
   data = subset(slopes_lrr_species_cover, local_provenance %in% c("INT", "NAT")),
