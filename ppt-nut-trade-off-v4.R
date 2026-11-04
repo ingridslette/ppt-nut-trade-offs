@@ -757,7 +757,6 @@ site_cover_results_ctrl <- site_cover_model_list_ctrl %>%
 site_cover_slopes_ctrl <- site_cover_results_ctrl %>%
   filter(term == "npk_lrr")
 
-View(site_cover_slopes_ctrl)
 print(site_cover_slopes_ctrl, n=36)
 
 site_cover_model_list_npk <- slopes_lrr_species_cover_npk %>%
@@ -770,7 +769,6 @@ site_cover_results_npk <- site_cover_model_list_npk %>%
 site_cover_slopes_npk <- site_cover_results_npk %>%
   filter(term == "npk_lrr")
 
-View(site_cover_slopes_npk)
 print(site_cover_slopes_ctrl, n=36)
 
 
@@ -1119,7 +1117,7 @@ bargraph_quadrant_fg_biomass_ctrl <- ggplot(quadrant_counts_fg_biomass_ctrl,
   scale_quad_fill +
   guides(fill = "none") +
   facet_wrap(~ category) +
-  labs(x = "NPK Response / Precip Resoponse", y = "Number of sites") +
+  labs(x = "NPK Response / Precip Resoponse", y = "Number of site-FG combinations") +
   theme_bw(base_size = 14) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
@@ -1131,7 +1129,7 @@ bargraph_quadrant_fg_biomass_npk <- ggplot(quadrant_counts_fg_biomass_npk,
   scale_quad_fill +
   guides(fill = "none") +
   facet_wrap(~ category) +
-  labs(x = "NPK Response / Precip Resoponse", y = "Number of sites") +
+  labs(x = "NPK Response / Precip Resoponse", y = "Number of site-FG combinations") +
   theme_bw(base_size = 14) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
@@ -1290,8 +1288,8 @@ plot_fg_cover_npk <- ggplot(slopes_lrr_species_cover_npk,
 plot_fg_cover_npk
 
 plot_fg_cover_both <- ggarrange(
-  plot_species_cover_ctrl + rremove("xlab"),
-  plot_species_cover_npk,
+  plot_fg_cover_ctrl + rremove("xlab"),
+  plot_fg_cover_npk,
   ncol = 1,
   common.legend = TRUE,
   legend = "right",
@@ -1529,6 +1527,7 @@ plot_species_cover_ps_ctrl <- ggplot(
   data = subset(slopes_lrr_species_cover_ctrl, ps_path %in% c("C3", "C4")),
   aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
   geom_point(size = 2, alpha = 0.7) +
+  scale_y_continuous(limits = c(-2.8, 4)) +
   scale_quad_color +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed") +
@@ -1545,6 +1544,7 @@ plot_species_cover_ps_npk <- ggplot(
   data = subset(slopes_lrr_species_cover_npk, ps_path %in% c("C3", "C4")),
   aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
   geom_point(size = 2, alpha = 0.7) +
+  scale_y_continuous(limits = c(-2.8, 4)) +
   scale_quad_color +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed") +
@@ -1572,9 +1572,10 @@ plot_species_cover_ps_both
 ## Family Graph
 
 plot_species_cover_family_ctrl <- ggplot(
-  data = slopes_lrr_species_cover_fam6,
+  data = slopes_lrr_species_cover_fam6_ctrl,
   aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
   geom_point(size = 2, alpha = 0.7) +
+  scale_y_continuous(limits = c(-2.8, 4)) +
   scale_quad_color +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed") +
@@ -1590,6 +1591,7 @@ plot_species_cover_family_npk <- ggplot(
   data = slopes_lrr_species_cover_fam6_npk,
   aes(x = npk_lrr, y = ppt_slope, color = quadrant)) +
   geom_point(size = 2, alpha = 0.7) +
+  scale_y_continuous(limits = c(-2.8, 4)) +
   scale_quad_color +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed") +
@@ -1601,4 +1603,73 @@ plot_species_cover_family_npk <- ggplot(
 
 plot_species_cover_family_npk
 
+
+
+
+bubble_grid <- function(counts, n_col, size_title = "Number of sites",
+                        max_size = 20) {
+  lv <- c("negative", "none", "positive")
+  
+  counts %>%
+    rename(n = {{ n_col }}) %>%
+    filter(n > 0) %>%
+    mutate(
+      npk_response    = factor(npk_response,    levels = lv),
+      precip_response = factor(precip_response, levels = lv),
+      quadrant = factor(paste(npk_response, precip_response, sep = " / "),
+                        levels = quad_levels)
+    ) %>%
+    ggplot(aes(x = npk_response, y = precip_response)) +
+    geom_point(aes(size = n, color = quadrant), alpha = 0.85) +
+    geom_text(aes(label = n), size = 3.5) +
+    scale_x_discrete(limits = lv) +
+    scale_y_discrete(limits = lv) +
+    scale_size_area(max_size = max_size) +
+    scale_quad_color +
+    labs(x = "Response to NPK", y = "Response to precipitation",
+         size = size_title, color = "Response type") +
+    theme_bw(base_size = 14) +
+    theme(legend.position = "none",
+          panel.grid.minor = element_blank(),
+          panel.grid.major = element_blank())
+}
+
+
+# Total biomass
+bubble_total_biomass_ctrl <- bubble_grid(response_counts_total_biomass_ctrl, n_sites)
+bubble_total_biomass_ctrl
+
+# FG biomass (facet by functional group)
+bubble_fg_biomass_ctrl <- bubble_grid(response_counts_fg_biomass_ctrl, n_sites) +
+  facet_wrap(~ category) +
+  labs(y = "Response to precipitation \nControl Plots")
+bubble_fg_biomass_ctrl
+
+bubble_fg_biomass_npk <- bubble_grid(response_counts_fg_biomass_npk, n_sites) +
+  facet_wrap(~ category) +
+  labs(y = "Response to precipitation \nNPK Plots")
+bubble_fg_biomass_npk
+
+# Species cover
+bubble_species_cover_ctrl <- bubble_grid(response_counts_species_cover_ctrl, n_site_species) +
+  labs(y = "Response to precipitation \nControl Plots",
+       title = "Number of site-species combinations")
+bubble_species_cover_ctrl
+
+bubble_species_cover_npk <- bubble_grid(response_counts_species_cover_npk, n_site_species) +
+  labs(y = "Response to precipitation \nNPK Plots",
+       title = "Number of site-species combinations")
+bubble_species_cover_npk
+
+bubble_fg_cover_ctrl <- bubble_grid(response_counts_fg_cover_ctrl, n_site_species)+
+  facet_wrap(~ functional_group) +
+  labs(y = "Response to precipitation \nControl Plots",
+       title = "Number of site-species combinations") 
+bubble_fg_cover_ctrl
+
+bubble_fg_cover_npk <- bubble_grid(response_counts_fg_cover_npk, n_site_species)+
+  facet_wrap(~ functional_group) +
+  labs(y = "Response to precipitation \nNPK Plots",
+       title = "Number of site-species combinations")
+bubble_fg_cover_npk
 
