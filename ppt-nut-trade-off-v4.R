@@ -1673,3 +1673,65 @@ bubble_fg_cover_npk <- bubble_grid(response_counts_fg_cover_npk, n_site_species)
        title = "Number of site-species combinations")
 bubble_fg_cover_npk
 
+
+
+
+plots <- list(graph_total_biomass_ctrl,
+graph_total_biomass_npk,
+graph_total_biomass_both,
+bargraph_total_biomass_ctrl,
+bargraph_quadrant_total_biomass_ctrl,
+graph_fg_biomass_ctrl,
+graph_fg_biomass_npk,
+graph_fg_biomass_both,
+bargraph_fg_biomass_ctrl,
+bargraph_fg_biomass_npk,
+bargraph_fg_biomass_both,
+bargraph_quadrant_fg_biomass_ctrl,
+bargraph_quadrant_fg_biomass_npk,
+bargraph_quadrant_fg_biomass_both,
+plot_species_cover_ctrl,
+plot_species_cover_npk,
+plot_species_cover_both,
+barplot_species_cover_ctrl,
+barplot_species_cover_npk,
+barplot_species_cover_both,
+barplot_quadrant_species_cover_ctrl,
+barplot_quadrant_species_cover_npk,
+barplot_quadrant_species_cover_both,
+plot_fg_cover_ctrl,
+plot_fg_cover_npk,
+plot_fg_cover_both,
+barplot_fg_cover_ctrl,
+barplot_fg_cover_npk,
+barplot_species_cover_both,
+barplot_quadrant_fg_cover_ctrl,
+barplot_quadrant_fg_cover_npk,
+barplot_quadrant_fg_cover_both,
+plot_species_cover_sites_ctrl,
+plot_species_cover_sites_npk,
+plot_species_cover_taxon_ctrl,
+plot_species_cover_taxon_npk,
+plot_species_cover_lifespan_ctrl,
+plot_species_cover_lifespan_npk,
+plot_species_cover_lifespan_both,
+plot_species_cover_provenance_ctrl,
+plot_species_cover_provenance_npk,
+plot_species_cover_provenance_both,
+plot_species_cover_ps_ctrl,
+plot_species_cover_ps_npk,
+plot_species_cover_ps_both,
+plot_species_cover_family_ctrl,
+plot_species_cover_family_npk,
+bubble_total_biomass_ctrl,
+bubble_fg_biomass_ctrl,
+bubble_fg_biomass_npk,
+bubble_species_cover_ctrl,
+bubble_species_cover_npk,
+bubble_fg_cover_ctrl,
+bubble_fg_cover_npk)
+
+dir.create("figures", showWarnings = FALSE)
+iwalk(plots, ~ ggsave(file.path("figures", paste0(.y, ".png")), .x))
+
+getwd()
